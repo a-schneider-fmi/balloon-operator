@@ -13,6 +13,7 @@ Created on Thu Apr  8 07:38:26 2021
 import numpy as np
 from enum import Enum
 
+
 FillGas = Enum('FillGas', 'HYDROGEN HELIUM')
 gas_density = {FillGas.HYDROGEN: 0.0899, FillGas.HELIUM: 0.1786} # gas density in kg/m^3 at STP (standard temperature and pressure, 0°C and 101kPa)
 
@@ -43,19 +44,19 @@ def readBalloonParameterList(filename):
     return np.genfromtxt(filename, delimiter='\t', skip_header=1, names=['weight', 'burst_diameter', 'drag_coefficient'])
 
 
-def lookupBalloonParameters(balloon_parameter_list, balloon_weight):
+def lookupParameters(parameter_list, name, key='weight'):
     """
-    Look up balloon parameters for a given balloon weight.
+    Look up parameters for a given name (e.g. balloon weight).
 
-    @param balloon_parameters balloon parameter table as read with readBalloonParameterList
-    @param balloon_weight balloon weight to look up the data
-    @return named array with keys 'weight', 'burst_diameter' and 'drag_coefficient', or None if the given weight is not in the list.
+    @param parameter_list parameter table as named array, e.g. as read with readBalloonParameterList
+    @param name name (e.g. balloon weight) to look up the data
+    @return selected column of the named array, or None if the given weight is not in the list.
     """
-    ind = np.where(balloon_parameter_list[:]['weight'] == balloon_weight)[0]
+    ind = np.where(parameter_list[:][key] == name)[0]
     if len(ind) != 1:
         return None
     else:
-        return balloon_parameter_list[ind[0]]
+        return parameter_list[ind[0]]
 
 
 def balloonPerformance(balloon_parameters, payload_weight, launch_volume=None, launch_radius=None, fill_gas=FillGas.HELIUM, burst_height_correction=False):
@@ -133,8 +134,8 @@ def twoBalloonFilling(
 
     Approach from Jens Söder's MATLAB code.
 
-    @param asc_balloon_parameters: balloon parameters for ascent balloon from lookupBalloonParameters
-    @param desc_balloon_parameters: balloon parameters for ascent balloon from lookupBalloonParameters
+    @param asc_balloon_parameters: balloon parameters for ascent balloon from lookupParameters
+    @param desc_balloon_parameters: balloon parameters for ascent balloon from lookupParameters
     @param payload_weight payload weight in kg
     @param ascent_velocity desired ascent velocity
     @param descent_velocity desired descent velocity, has to be negative

@@ -19,12 +19,12 @@ def test_fillGas():
     assert(filling.fillGas('hydrogen') == filling.FillGas.HYDROGEN)
 
 
-def test_lookupBalloonParameters():
+def test_lookupParameters():
     """
-    Unit test for lookupBalloonParameters
+    Unit test for lookupParameters
     """
     balloon_parameter_list = filling.readBalloonParameterList('totex_balloon_parameters.csv')
-    parameters_800 = filling.lookupBalloonParameters(balloon_parameter_list, 800)
+    parameters_800 = filling.lookupParameters(balloon_parameter_list, 800)
     assert(parameters_800['weight'] == 800)
     assert(parameters_800['burst_diameter'] == 7.)
     assert(parameters_800['drag_coefficient'] == 0.3)
@@ -43,7 +43,7 @@ def test_balloonPerformance(verbose=False):
     reference_burst_height = 17503
     eps_limit = 1e-5
     balloon_parameter_list = filling.readBalloonParameterList('totex_balloon_parameters.csv')
-    balloon_parameters = filling.lookupBalloonParameters(balloon_parameter_list, balloon_weight)
+    balloon_parameters = filling.lookupParameters(balloon_parameter_list, balloon_weight)
     free_lift, ascent_velocity, burst_height = filling.balloonPerformance(
             balloon_parameters, payload_weight, launch_volume, fill_gas=fill_gas,
             burst_height_correction=False)
@@ -84,7 +84,7 @@ def test_balloonFilling(verbose=False):
     reference_lift = 15.020 # kg
     reference_launch_radius =  1.5718 # m
     eps_limit = 1e-2
-    balloon_parameters = filling.lookupBalloonParameters(balloon_parameter_list, balloon_weight)
+    balloon_parameters = filling.lookupParameters(balloon_parameter_list, balloon_weight)
     launch_radius, free_lift, burst_height = filling.balloonFilling(
             balloon_parameters, payload_weight, ascent_velocity, fill_gas=fill_gas)
     lift = payload_weight + free_lift
@@ -107,7 +107,7 @@ def test_balloonFilling(verbose=False):
     ascent_velocity = -5. # m/s
     fill_gas = filling.FillGas.HELIUM
     reference_launch_radius =  1.3850 # m
-    balloon_parameters = filling.lookupBalloonParameters(balloon_parameter_list, balloon_weight)
+    balloon_parameters = filling.lookupParameters(balloon_parameter_list, balloon_weight)
     launch_radius, free_lift, burst_height = filling.balloonFilling(
             balloon_parameters, payload_weight, ascent_velocity, fill_gas=fill_gas)
     if verbose:
@@ -135,8 +135,8 @@ def test_twoBalloonFilling(verbose=False):
     reference_asc_lift =  6.9013 # kg
     reference_desc_lift = 9.5352 # kg
     eps_limit = 1e-2
-    asc_balloon_parameters = filling.lookupBalloonParameters(balloon_parameter_list, asc_balloon_weight)
-    desc_balloon_parameters = filling.lookupBalloonParameters(balloon_parameter_list, desc_balloon_weight)
+    asc_balloon_parameters = filling.lookupParameters(balloon_parameter_list, asc_balloon_weight)
+    desc_balloon_parameters = filling.lookupParameters(balloon_parameter_list, desc_balloon_weight)
     asc_launch_radius, desc_launch_radius, asc_free_lift, desc_free_lift, payload_reduction, asc_burst_height, desc_burst_height = filling.twoBalloonFilling(
             asc_balloon_parameters, desc_balloon_parameters, payload_weight, 
             ascent_velocity, descent_velocity, fill_gas=fill_gas)
@@ -166,7 +166,7 @@ def test_twoBalloonFilling(verbose=False):
 
 if __name__ == "__main__":
     test_fillGas()
-    test_lookupBalloonParameters()
+    test_lookupParameters()
     test_balloonPerformance(verbose=True)
     test_balloonFilling(verbose=True)
     test_twoBalloonFilling(verbose=True)
