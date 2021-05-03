@@ -12,6 +12,7 @@ Created on Thu Apr  8 07:38:26 2021
 
 import numpy as np
 from enum import Enum
+from balloon_operator import constants
 
 
 FillGas = Enum('FillGas', 'HYDROGEN HELIUM')
@@ -50,6 +51,7 @@ def lookupParameters(parameter_list, name, key='weight'):
 
     @param parameter_list parameter table as named array, e.g. as read with readBalloonParameterList
     @param name name (e.g. balloon weight) to look up the data
+    @param key key to use for look-up (default: weight)
     @return selected column of the named array, or None if the given weight is not in the list.
     """
     ind = np.where(parameter_list[:][key] == name)[0]
@@ -75,18 +77,17 @@ def balloonPerformance(balloon_parameters, payload_weight, launch_volume=None, l
     @return burst_height burst altitude in m
     """
     assert(launch_volume is not None or launch_radius is not None)
-    air_density = 1.205 # air density in kg/m^2 at 0°C and 101kPa
+    constants.density['air'] = 1.205 # air density in kg/m^2 at 0°C and 101kPa
     air_density_model = 7238.3 # air density model from spread sheet
-    gravity = 9.81 # gravitational acceleration in m/s^2
     if launch_radius is None: # if launch radius is not given, but launch volume
         launch_radius = (launch_volume/(4./3.*np.pi))**(1./3.)
     elif launch_volume is None: # if launch volume is not given, but launch radius
         launch_volume = 4./3.*np.pi*launch_radius**3
     burst_volume = 4./3.*np.pi*(balloon_parameters['burst_diameter']/2.)**3 # burst colume in m^3
     burst_height = -air_density_model*np.log(launch_volume/burst_volume) # burst height in m
-    gross_lift = launch_volume*(air_density-gas_density[fill_gas]) # gross lift in kg
+    gross_lift = launch_volume*(constants.density['air']-gas_density[fill_gas]) # gross lift in kg
     free_lift = gross_lift - (balloon_parameters['weight']/1000. + payload_weight) # free lift in kg
-    ascent_velocity = np.sign(free_lift)*np.sqrt(np.abs(free_lift)*gravity / (0.5*balloon_parameters['drag_coefficient']*air_density*np.pi*(launch_radius)**2)) # ascent velocity in m/s
+    ascent_velocity = np.sign(free_lift)*np.sqrt(np.abs(free_lift)*constants.gravity / (0.5*balloon_parameters['drag_coefficient']*constants.density['air']*np.pi*(launch_radius)**2)) # ascent velocity in m/s
     if burst_height_correction:
         burst_height *= 1.03 # Correct underestimation of burst height by 3%.
     return free_lift, ascent_velocity, burst_height

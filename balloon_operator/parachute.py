@@ -10,6 +10,7 @@ Created on Mon Apr 19 18:14:53 2021
 """
 
 import numpy as np
+from balloon_operator import filling
 
 
 def readParachuteParameterList(filename):
@@ -26,7 +27,18 @@ def readParachuteParameterList(filename):
             dtype=['U25', 'f8', 'f8'])
 
 
-def parachuteDescent(alt_start, timestep, payload_weight, parachute_parameters, box_area, box_drag_coefficient=0.25):
+def lookupParachuteParameters(parameter_list, name):
+    """
+    Look up parachute parameters for a given name.
+
+    @param parameter_list parameter table as named array, e.g. as read with readParachuteParameterList
+    @param name name to look up the data
+    @return selected column of the named array, or None if the given weight is not in the list.
+    """
+    return filling.lookupParameters(parameter_list, name, key='name')
+
+
+def parachuteDescent(alt_start, timestep, payload_weight, parachute_parameters, payload_area, payload_drag_coefficient=0.25):
     """
     Compute descent on parachute by solving the equation of motion.
 
@@ -58,8 +70,8 @@ def parachuteDescent(alt_start, timestep, payload_weight, parachute_parameters, 
 
     cdpara = parachute_parameters['drag_coefficient']
     paraarea = np.pi*parachute_parameters['diameter']**2/4.
-    cdbox = box_drag_coefficient
-    boxarea = box_area
+    cdbox = payload_drag_coefficient
+    boxarea = payload_area
     m = payload_weight
     max_iter = 10000000
     time = np.zeros(max_iter)

@@ -23,7 +23,7 @@ def test_lookupParameters():
     """
     Unit test for lookupParameters
     """
-    balloon_parameter_list = filling.readBalloonParameterList('totex_balloon_parameters.csv')
+    balloon_parameter_list = filling.readBalloonParameterList('totex_balloon_parameters.tsv')
     parameters_800 = filling.lookupParameters(balloon_parameter_list, 800)
     assert(parameters_800['weight'] == 800)
     assert(parameters_800['burst_diameter'] == 7.)
@@ -41,8 +41,8 @@ def test_balloonPerformance(verbose=False):
     reference_free_lift = 3.6224
     reference_ascent_rate = 5.06067163990215
     reference_burst_height = 17503
-    eps_limit = 1e-5
-    balloon_parameter_list = filling.readBalloonParameterList('totex_balloon_parameters.csv')
+    eps_limit = 2e-4
+    balloon_parameter_list = filling.readBalloonParameterList('totex_balloon_parameters.tsv')
     balloon_parameters = filling.lookupParameters(balloon_parameter_list, balloon_weight)
     free_lift, ascent_velocity, burst_height = filling.balloonPerformance(
             balloon_parameters, payload_weight, launch_volume, fill_gas=fill_gas,
@@ -74,7 +74,7 @@ def test_balloonFilling(verbose=False):
     """
     Unit test for balloonFilling
     """
-    balloon_parameter_list = filling.readBalloonParameterList('totex_balloon_parameters.csv')
+    balloon_parameter_list = filling.readBalloonParameterList('totex_balloon_parameters.tsv')
     # Test filling of ascent balloon.
     balloon_weight = 2000. # g
     payload_weight = 12. # kg
@@ -121,7 +121,7 @@ def test_twoBalloonFilling(verbose=False):
     """
     Unit test for twoBalloonFilling
     """
-    balloon_parameter_list = filling.readBalloonParameterList('totex_balloon_parameters.csv')
+    balloon_parameter_list = filling.readBalloonParameterList('totex_balloon_parameters.tsv')
     asc_balloon_weight = 2000. # g
     desc_balloon_weight = 3000. # g
     payload_weight = 12. # kg
