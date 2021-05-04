@@ -25,6 +25,7 @@ def getModelArea(launch_lon, launch_lat, resolution=0.25, radius = 800.):
     @param launch_lat latitude of launch point in degrees
     @param resolution model resolution in degrees (default: 0.25)
     @param radius radius in km around the launch point (default: 800)
+
     @return lon_range longitude range [min, max] in which to download model data
     @return lat_range latitude range [min, max] in which to download model data
     """
@@ -44,6 +45,9 @@ def getModelRun(launch_datetime, run_period=6, forecast_period=1):
     @param launch_datetime datetime of the launch
     @param run_period period in hours in which model runs are performed (default: 6)
     @param forecast_period period in hours in which forecasts are written out (default: 1)
+
+    @return model_datetime datetime of the latest model run
+    @return forecast_time forecast time in hours
     """
     model_datetime = datetime.datetime.utcnow()
     if launch_datetime < model_datetime: # if launch is in the past
@@ -65,6 +69,7 @@ def modelFilename(model_name, lon_range, lat_range, run_datetime, forecast_time,
     @param model_datetime datetime of the model run
     @param forecast_time forecast time (as int)
     @param model_resolution model resolution
+
     @return filename
     """
     return '{}{}_{}-{}_{}-{}_{}f{:03d}.grb2'.format(
@@ -82,6 +87,7 @@ def downloadGfs(lon_range, lat_range, model_datetime, forecast_time, dest_dir, m
     @param forecast_time forecast time (as int)
     @param dest_dir directory in which to put the downloaded file
     @param model_resolution model resolution to download
+
     @return filename name of the downloaded file, or None if the requested data is not available
     """
     # Download URL obtained from https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl
@@ -144,6 +150,7 @@ def getGfsData(launch_lon, launch_lat, launch_datetime, dest_dir, model_resoluti
     @param launch_datetime datetime of the launch
     @param dest_dir directory to which model data shall be downloaded
     @param model_resolution model resolution in degrees (default 0.5)
+
     @return filename the filename (inclusive path) of the downloaded file, or None if unsuccessful
     """
     lon_range, lat_range = getModelArea(launch_lon, launch_lat, resolution=model_resolution)

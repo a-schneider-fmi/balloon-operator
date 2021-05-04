@@ -27,6 +27,7 @@ def m2deg(lon, lat, u, v):
     @param lat latitude grid
     @param u u winds in m/s
     @param v v winds in m/s
+
     @return u_deg u winds in deg/s
     @return v_deg v winds in deg/s
     """
@@ -40,6 +41,7 @@ def readGfsData(filename):
     Read in GFS data file
 
     @param filename name of GFS GRIB data file
+
     @return model_data a dictionary with the model data with the following keys:
         'press', 'lon', 'lat', 'surface_pressure', 'surface_altitude',
         'u_wind_deg', 'v_wind_deg'
@@ -99,6 +101,7 @@ def equidistantAltitudeGrid(start_datetime, start_altitude, end_altitude, ascent
     @param end_altitude end altitude
     @param ascent_velocity ascent velocity, use negative value for descent
     @param timestep time step
+
     @return datetime_vector datetime vector of the grid
     @return altitude_vector altitude vector of the grid
     """
@@ -121,6 +124,7 @@ def predictTrajectory(dt, altitude, model_data, lon_start, lat_start):
     @param model_data model data
     @param lon_start start longitude in degrees
     @param lat_start start latitude in degrees
+
     @return gpx_segment gpxpy.gpx.GPXTrackSegment object with trajectory
     """
     gpx_segment = gpxpy.gpx.GPXTrackSegment()
@@ -158,7 +162,7 @@ def predictTrajectory(dt, altitude, model_data, lon_start, lat_start):
                 lon -= timestep_fraction * delta_t * u
                 lat -= timestep_fraction * delta_t * v
                 dt -= datetime.timedelta(seconds=timestep_fraction*delta_t)
-                print('Reached surface: {} {} {}'.format(lon, lat, altitude[ind], surface_elevation))
+                print('Reached surface: {:.6f}° {:.6f}° {:.0f} m'.format(lon, lat, altitude[ind], surface_elevation))
                 has_landed = True
         gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(
                 lat, lon, elevation=altitude[ind], time=dt[ind], 
@@ -168,26 +172,72 @@ def predictTrajectory(dt, altitude, model_data, lon_start, lat_start):
     return gpx_segment
 
 
-def predictBalloonFLight(
+def predictBalloonFlight(
         launch_lon, launch_lat, launch_altitude, launch_datetime,
         payload_weight, payload_area, ascent_velocity, 
-        balloon_parameters, parachute_parameters, fill_gas, 
+        ascent_balloon_parameters, fill_gas, parachute_parameters, 
         model_data, timestep, 
-        descent_only=False, cut_altitude=None):
+        descent_velocity=None, descent_balloon_parameters=None,
+        cut_altitude=None, descent_only=False):
+    """
+    Predict a balloon flight for given payload and launch parameters.
+
+    @param launch_lon longitude of launch point
+    @param launch_lat latitude of launch point
+    @param launch_altitude altitude of launch point
+    @param launch_datetime datetime of launch
+    @param payload_weight payload weight in kg
+    @param payload_area payload area in m^2
+    @param ascent_velocity desired ascent velocity in m/s
+    @param ascent_balloon_parameters balloon parameters
+    @param fill_gas fill gas
+    @param parachute_parameters parachute parameters
+    @param model_data model data
+    @param timestep timestep
+    @param descent_velocity desired descent velocity for descent on balloon (None for descent on parachute)
+    @param descent_balloon_parameters parameters of descent balloon
+    @param cut_altitude altitude to activate the cutter to enter descent
+    @param descent_only whether to compute descent only (default: False)
+
+    @return track trajectory as gpxpy.gpx.GPXTrack() object
+    @return ascent_launch_radius launch radius of ascent balloon
+    @return ascent_neutral_lift neutral lift of ascent balloon
+    @return ascent_burst_height burst height of ascent balloon
+    @return descent_launch_radius launch radius of descent balloon (None if not present)
+    @return descent_neutral_lift neutral lift of descent balloon (None if not present)
+    @return descent_burst_height burst height of descent balloon (None if not present)
+    """
 
     track = gpxpy.gpx.GPXTrack()
 
-    # Compute balloon performance and ascent.
-    if not descent_only:
-        launch_radius, free_lift, burst_height = filling.balloonFilling(
-                balloon_parameters, payload_weight, ascent_velocity, fill_gas=fill_gas)
-        if cut_altitude is not None:
-            if cut_altitude < burst_height:
-                burst_height = cut_altitude
-            else:
-                print('Warning: cut altitude larger than burst height, {:.1f}m > {:.1f}m.'.format(cut_altitude, burst_height))
+    # Compute balloon performance.
+    if descent_velocity is not None: # if it's a two-balloon flight with descent on balloon
+        ascent_launch_radius, descent_launch_radius, ascent_neutral_lift, descent_neutral_lift, \
+        ascent_burst_height, descent_burst_height = filling.twoBalloonFilling(
+            ascent_balloon_parameters, descent_balloon_parameters, payload_weight, 
+            ascent_velocity, descent_velocity, fill_gas=fill_gas)
+        assert(cut_altitude is not None)
+        if descent_burst_height < cut_altitude + 1000: # 1000m safety margin
+            raise ValueError('Descent balloon bursts before reaching top altitude: burst height {:.0f} m, cut altitude {:.0f} m'.format(descent_burst_height, cut_altitude))
+        if ascent_burst_height < cut_altitude + 2000:
+            raise ValueError('Ascent balloon bursts before ascent balloon (accounting for safety margin): {:.0f} m < {:.0f} m + 2000 m'.format(descent_burst_height, ascent_burst_height))
+    else:
+        ascent_launch_radius, ascent_neutral_lift, ascent_burst_height = filling.balloonFilling(
+                ascent_balloon_parameters, payload_weight, ascent_velocity, fill_gas=fill_gas)
+        descent_launch_radius = None
+        descent_neutral_lift = None
+        descent_burst_height = None
 
-        datetime_ascent, alt_ascent = equidistantAltitudeGrid(launch_datetime, launch_altitude, burst_height, ascent_velocity, timestep)
+    # Compute ascent
+    if not descent_only:
+        top_height = ascent_burst_height
+        if cut_altitude is not None:
+            if cut_altitude < ascent_burst_height:
+                top_height = cut_altitude
+            else:
+                print('Warning: cut altitude larger than burst height, {:.1f}m > {:.1f}m.'.format(cut_altitude, ascent_burst_height))
+
+        datetime_ascent, alt_ascent = equidistantAltitudeGrid(launch_datetime, launch_altitude, top_height, ascent_velocity, timestep)
         segment_ascent = predictTrajectory(datetime_ascent, alt_ascent, model_data, launch_lon, launch_lat)
         burst_lon = segment_ascent.points[-1].longitude
         burst_lat = segment_ascent.points[-1].latitude
@@ -197,14 +247,16 @@ def predictBalloonFLight(
     else:
         burst_lon = launch_lon
         burst_lat = launch_lat
-        burst_height = launch_altitude
+        top_height = launch_altitude
         burst_datetime = launch_datetime
-        launch_radius = None
-        free_lift = None
 
     # Compute descent.
-    time_descent, alt_descent, velocity_descent = parachute.parachuteDescent(burst_height, timestep, payload_weight, parachute_parameters, payload_area)
-    datetime_descent = burst_datetime + np.array([datetime.timedelta(seconds=this_time) for this_time in time_descent])
+    if descent_velocity is not None:
+        assert(descent_velocity > 0)
+        datetime_descent, alt_descent = equidistantAltitudeGrid(burst_datetime, top_height, 0, -descent_velocity, timestep)
+    else:
+        time_descent, alt_descent, velocity_descent = parachute.parachuteDescent(top_height, timestep, payload_weight, parachute_parameters, payload_area)
+        datetime_descent = burst_datetime + np.array([datetime.timedelta(seconds=this_time) for this_time in time_descent])
     segment_descent = predictTrajectory(datetime_descent, alt_descent, model_data, burst_lon, burst_lat)
     landing_lon = segment_descent.points[-1].longitude
     landing_lat = segment_descent.points[-1].latitude
@@ -217,7 +269,8 @@ def predictBalloonFLight(
         'descent on parachute {}, '.format(parachute_parameters['name']) + \
         'flight range {:.0f} km'.format(flight_range)
 
-    return track, launch_radius, free_lift
+    return track, ascent_launch_radius, ascent_neutral_lift, ascent_burst_height, \
+        descent_launch_radius, descent_neutral_lift, descent_burst_height
 
 
 def writeGpx(track, output_file, description=None):
@@ -225,7 +278,8 @@ def writeGpx(track, output_file, description=None):
     Write a trajectory to a GPX file.
 
     @param track gpxpy.gpx.GPXTrack object with trajectory
-    @param output_file
+    @param output_file the filename to which the track shall be written
+    @param description string to be written into the description field of the gpx file
     """
     gpx = gpxpy.gpx.GPX()
     gpx.creator = 'Balloon Operator'
@@ -242,6 +296,13 @@ def writeGpx(track, output_file, description=None):
 def main(launch_datetime, config_file='flight.ini', descent_only=False, launch_pos=None, output_file='/tmp/trajectory.gpx'):
     """
     Main function to make a trajectory prediction from a configuration file.
+
+    @param launch_datetime
+    @param config_file ini file to use (default: 'flight.ini')
+    @param descent_only whether to compute descent only (default: False)
+    @param launch_pos launch position (longitude, latitude, altitude), overwrites
+        position in ini file if specified
+    @param output_file output filename for computed trajectory (default: '/tmp/trajectory.gpx')
     """
     # Read configuration.
     config = configparser.ConfigParser()
@@ -249,14 +310,23 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, launch_p
     payload_weight = config['payload'].getfloat('payload_weight')
     assert(payload_weight is not None)
     payload_area = config['payload'].getfloat('payload_area')
-    balloon_weight = config['payload'].getint('balloon_weight')
-    assert(balloon_weight is not None)
+    if 'ascent_balloon_weight' in config['payload']:
+        ascent_balloon_weight = config['payload'].getint('ascent_balloon_weight')
+    else:
+        ascent_balloon_weight = config['payload'].getint('balloon_weight')
+    assert(ascent_balloon_weight is not None)
+    descent_balloon_weight = config['payload'].getint('ascent_balloon_weight', fallback=None)
     ascent_velocity = config['payload'].getfloat('ascent_velocity')
     assert(ascent_velocity is not None)
+    descent_velocity = config['payload'].getfloat('descent_velocity', fallback=None)
     fill_gas = filling.fillGas(config['payload']['fill_gas'])
-    cut_altitude = config['payload'].getfloat('cut_altitude', None)
+    cut_altitude = config['payload'].getfloat('cut_altitude', fallback=None)
     balloon_parameter_list = filling.readBalloonParameterList(config['parameters']['balloon'])
-    balloon_parameters = filling.lookupParameters(balloon_parameter_list, balloon_weight)
+    ascent_balloon_parameters = filling.lookupParameters(balloon_parameter_list, ascent_balloon_weight)
+    if descent_balloon_weight is not None:
+        descent_balloon_parameters = filling.lookupParameters(balloon_parameter_list, descent_balloon_weight)
+    else:
+        descent_balloon_parameters = None
     parachute_parameter_list = parachute.readParachuteParameterList(config['parameters']['parachute'])
     parachute_parameters = filling.lookupParameters(parachute_parameter_list, config['payload']['parachute_type'], key='name')
     if launch_pos is None:
@@ -277,14 +347,23 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, launch_p
         return
     model_data = readGfsData(model_filename)
 
-    track, launch_radius, free_lift = predictBalloonFLight(
+    track, ascent_launch_radius, ascent_neutral_lift, ascent_burst_height, \
+    descent_launch_radius, descent_neutral_lift, descent_burst_height = predictBalloonFlight(
         launch_lon, launch_lat, launch_altitude, launch_datetime,
         payload_weight, payload_area, ascent_velocity, 
-        balloon_parameters, parachute_parameters, fill_gas, 
+        ascent_balloon_parameters, fill_gas, parachute_parameters, 
         model_data, timestep, 
-        descent_only=descent_only, cut_altitude=cut_altitude)
-    if launch_radius is not None:
-        print('Fill volume {:.4f} m^3, free lift {:.3f} kg'.format(4./3.*np.pi*launch_radius**3, free_lift))
+        descent_velocity=descent_velocity, 
+        descent_balloon_parameters=descent_balloon_parameters,
+        cut_altitude=cut_altitude, descent_only=descent_only)
+    if ascent_launch_radius is not None:
+        print('Ascent balloon: fill volume {:.3f} m^3, neutral lift {:.3f} kg, burst height {:.0f} m'.format(4./3.*np.pi*ascent_launch_radius**3, ascent_neutral_lift, ascent_burst_height))
+    if descent_velocity is not None:
+        print('Descent balloon: fill volume {:.3f} m^3, neutral lift {:.3f} kg, burst height {:.0f} m'.format(4./3.*np.pi*descent_launch_radius**3, descent_neutral_lift, descent_burst_height))
+    print('Landing point: {:.5f}° {:.5f}° {:.0f} m'.format(
+            track.segments[-1].points[-1].longitude,
+            track.segments[-1].points[-1].latitude,
+            track.segments[-1].points[-1].elevation))
 
     # Write out track as GPX.
     writeGpx(track, output_file, description=track.description)

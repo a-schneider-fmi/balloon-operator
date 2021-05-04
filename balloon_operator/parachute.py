@@ -19,6 +19,7 @@ def readParachuteParameterList(filename):
     CSV file.
 
     @param filename CSV file name of the data
+
     @return named array with parachute parameters, names are 'name', 'diameter', 'drag_coefficient'
     """
     return np.genfromtxt(
@@ -33,6 +34,7 @@ def lookupParachuteParameters(parameter_list, name):
 
     @param parameter_list parameter table as named array, e.g. as read with readParachuteParameterList
     @param name name to look up the data
+
     @return selected column of the named array, or None if the given weight is not in the list.
     """
     return filling.lookupParameters(parameter_list, name, key='name')
@@ -44,6 +46,17 @@ def parachuteDescent(alt_start, timestep, payload_weight, parachute_parameters, 
 
     This is a port of the descent function in Jens Söder's BalloonTrajectory
     MATLAB program.
+
+    @param alt_start start altitude in m
+    @param timestep time step of the output arrays in seconds
+    @param payload_weight payload weight in kg
+    @param parachute_parameters parachute parameters as given by lookupParachuteParameters
+    @param payload_area payload area in m^2
+    @param payload_drag_coefficient drag coefficient of payload (default 0.25)
+
+    @return time array of time relative to begin of descent in s
+    @return altitude array of altitudes
+    @return velocity array of velocities
     """
 
     # Initialise variables.
@@ -111,9 +124,16 @@ def parachuteDescent(alt_start, timestep, payload_weight, parachute_parameters, 
     velocity = velocity[:i]
 
     # Downsample data array.
+    time_end = time[-1]
+    altitude_end = altitude[-1]
+    velocity_end = velocity[-1]
     downsampling_factor = int(np.round(timestep/delt))
     time = time[::downsampling_factor]
     altitude = altitude[::downsampling_factor]
     velocity = velocity[::downsampling_factor]
+    if time[-1] != time_end: # If last point(s) are removed by downsampling.
+        time = np.append(time, time_end)
+        altitude = np.append(altitude, altitude_end)
+        velocity = np.append(velocity, velocity_end)
 
     return time, altitude, velocity

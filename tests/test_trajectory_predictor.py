@@ -46,6 +46,18 @@ def test_equidistantAltitudeGrid(verbose=False):
     assert(altitude_vector[-1] == 0)
 
 
+def test_main():
+    """
+    Test of main function
+    """
+    dt = datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+    trajectory_predictor.main(dt)
+    trajectory_predictor.main(dt, descent_only=True)
+    trajectory_predictor.main(dt, config_file='aircore.ini')
+    trajectory_predictor.main(dt, config_file='aircore.ini', descent_only=True)
+
+
 if __name__ == "__main__":
     test_readGfsData(verbose=True)
     test_equidistantAltitudeGrid(verbose=True)
+    test_main()

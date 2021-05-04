@@ -19,6 +19,7 @@ def alt2press(h, p0=101325., T0=288.15, L=0.0065):
     @param p0 surface pressure (default: 101325 Pa = 1013.24 hPa)
     @param T0 surface temperature (default: 288.15 K = 15°C)
     @param L lapse rate (default: 0.0065 K/m = 6.5K/km)
+
     @return p pressure (in Pa)
         
     The formula is
@@ -51,6 +52,7 @@ def press2alt(p, p0=101325., T0=288.15, L=0.0065):
     @param p0 surface pressure (default: 101325 Pa = 1013.24 hPa)
     @param T0 surface temperature (default: 288.15 K = 15°C)
     @param L lapse rate (default: 0.0065 K/m = 6.5K/km)
+
     @return h altitude (in m)
 
     Uses an inversion of the pressure formula in alt2press(), which is
@@ -82,6 +84,7 @@ def roundSeconds(dt: datetime.datetime, round_up_threshold=500_000) -> datetime.
     @param dt datetime to be rounded
     @param round_up_threshold threshold in microseconds from which rounding up (default: 500_000)
         Use 1 to round up.
+
     @return dt rounded datetime
     """
     if dt.microsecond >= round_up_threshold:
