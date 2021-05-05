@@ -31,15 +31,38 @@ def test_roundSeconds(verbose=False):
     dt = datetime.datetime(2021, 1, 1, 0, 0, 5, np.random.randint(1000000))
     dt_rounded = utils.roundSeconds(dt) # round
     if verbose: print('{} -> {}, {}'.format(dt, dt_rounded, dt-dt_rounded))
-    if dt > dt_rounded:
-        assert(dt - dt_rounded < datetime.timedelta(milliseconds=500))
+    if dt_rounded > dt:
+        assert(dt_rounded - dt <= datetime.timedelta(milliseconds=500))
     else:
-        assert(dt_rounded - dt < datetime.timedelta(milliseconds=500))
+        assert(dt - dt_rounded < datetime.timedelta(milliseconds=500))
+    assert(dt_rounded.microsecond == 0)
+
     dt_rounded = utils.roundSeconds(dt, 1000000) # round down
-    if verbose: print('{} -> {}'.format(dt, dt_rounded))
-    assert(dt - dt_rounded < datetime.timedelta(seconds=1) and dt - dt_rounded >= datetime.timedelta(seconds=0))
-    
+    if verbose: print('{} -> {}, {}'.format(dt, dt_rounded, dt-dt_rounded))
+    assert(dt_rounded <= dt and dt - dt_rounded < datetime.timedelta(seconds=1))
+    assert(dt_rounded.microsecond == 0)
+
+
+def test_roundHours(verbose=False):
+    """
+    Unit test for roundHours
+    """
+    dt = datetime.datetime.utcnow()
+    dt_rounded = utils.roundHours(dt)
+    if verbose: print('{} -> {}, {}'.format(dt, dt_rounded, dt-dt_rounded))
+    if dt_rounded > dt:
+        assert(dt_rounded - dt <= datetime.timedelta(minutes=30))
+    else:
+        assert(dt - dt_rounded < datetime.timedelta(minutes=30))
+    assert(dt_rounded.minute == 0 and dt_rounded.second == 0)
+
+    dt_rounded = utils.roundHours(dt, 1) # round up
+    if verbose: print('{} -> {}, {}'.format(dt, dt_rounded, dt_rounded - dt))
+    assert(dt_rounded >= dt and dt_rounded - dt < datetime.timedelta(minutes=59))
+    assert(dt_rounded.minute == 0 and dt_rounded.second == 0)
+
 
 if __name__ == "__main__":
     test_alt2press(verbose=True)
     test_roundSeconds(verbose=True)
+    test_roundHours(verbose=True)

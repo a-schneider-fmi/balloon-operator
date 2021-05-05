@@ -90,3 +90,18 @@ def roundSeconds(dt: datetime.datetime, round_up_threshold=500_000) -> datetime.
     if dt.microsecond >= round_up_threshold:
         dt += datetime.timedelta(seconds=1)
     return dt.replace(microsecond=0)
+
+
+def roundHours(dt: datetime.datetime, round_up_threshold=30) -> datetime.datetime:
+    """
+    Rounds a datetime object to the ext full hour.
+
+    @param dt datetime to be rounded
+    @param round_up_threshold threshold in minutes from which to round up (default: 30)
+
+    @return dt rounded datetime
+    """
+    new_hour = dt.hour + (1 if dt.minute >= round_up_threshold else 0)
+    dt_rounded = datetime.datetime.combine(dt.date(), datetime.time(new_hour))
+
+    return dt_rounded

@@ -111,7 +111,7 @@ def downloadGfs(lon_range, lat_range, model_datetime, forecast_time, dest_dir, m
         print('File {} already downloaded.'.format(filename))
         return filename
     else:
-        print('Downloading from {} ...'.format(url))
+        print('Trying to download {} ...'.format(filename))
         count = 0
         result = None
         while result is None and count < 3:
@@ -134,6 +134,7 @@ def downloadGfs(lon_range, lat_range, model_datetime, forecast_time, dest_dir, m
                         fd.write(response.content)
                 except Exception as err:
                     print('Error writing local file: {}'.format(err))
+                print('Downloaded {}.'.format(filename))
                 return filename
             elif file_type.startswith('HTML document'): # Error web page
                 return None

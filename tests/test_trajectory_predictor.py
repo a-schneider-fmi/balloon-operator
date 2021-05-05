@@ -55,6 +55,7 @@ def test_main():
     trajectory_predictor.main(dt, descent_only=True)
     trajectory_predictor.main(dt, config_file='aircore.ini')
     trajectory_predictor.main(dt, config_file='aircore.ini', descent_only=True)
+    trajectory_predictor.main(dt, config_file='aircore.ini', hourly=6)
 
 
 if __name__ == "__main__":

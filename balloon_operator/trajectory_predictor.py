@@ -273,27 +273,33 @@ def predictBalloonFlight(
         descent_launch_radius, descent_neutral_lift, descent_burst_height
 
 
-def writeGpx(track, output_file, description=None):
+def writeGpx(track, output_file, name=None, description=None):
     """
     Write a trajectory to a GPX file.
 
-    @param track gpxpy.gpx.GPXTrack object with trajectory
+    @param track gpxpy.gpx.GPXTrack object with trajectory or gpxpy.gpx.GPX object
     @param output_file the filename to which the track shall be written
     @param description string to be written into the description field of the gpx file
     """
-    gpx = gpxpy.gpx.GPX()
+    if isinstance(track, gpxpy.gpx.GPX):
+        gpx = track
+    else:
+        if name is None:
+            name = 'Forecast {}'.format(track.get_time_bounds()[0])
+        gpx = gpxpy.gpx.GPX()
+        gpx.tracks.append(track)
     gpx.creator = 'Balloon Operator'
-    gpx.name = 'Forecast {}'.format(track.get_time_bounds()[0])
+    if name is not None:
+        gpx.name = name
     if description is not None:
         gpx.description = description
-    gpx.tracks.append(track)
     with open(output_file, 'w') as fd:
         print('Writing {}'.format(output_file))
         fd.write(gpx.to_xml())
     return
 
 
-def main(launch_datetime, config_file='flight.ini', descent_only=False, launch_pos=None, output_file='/tmp/trajectory.gpx'):
+def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=False, launch_pos=None, output_file=None):
     """
     Main function to make a trajectory prediction from a configuration file.
 
@@ -340,33 +346,85 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, launch_p
     timestep = config['parameters'].getint('timestep')
     model_path = config['parameters']['model_path']
 
-    # Download and read in model data.
-    model_filename = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
-    if model_filename is None:
-        print('Error retrieving model data.')
-        return
-    model_data = readGfsData(model_filename)
+    if output_file is None:
+        if hourly:
+            output_file = '/tmp/hourly_prediction.gpx'
+        else:
+            output_file = '/tmp/trajectory.gpx'
 
-    track, ascent_launch_radius, ascent_neutral_lift, ascent_burst_height, \
-    descent_launch_radius, descent_neutral_lift, descent_burst_height = predictBalloonFlight(
-        launch_lon, launch_lat, launch_altitude, launch_datetime,
-        payload_weight, payload_area, ascent_velocity, 
-        ascent_balloon_parameters, fill_gas, parachute_parameters, 
-        model_data, timestep, 
-        descent_velocity=descent_velocity, 
-        descent_balloon_parameters=descent_balloon_parameters,
-        cut_altitude=cut_altitude, descent_only=descent_only)
-    if ascent_launch_radius is not None:
-        print('Ascent balloon: fill volume {:.3f} m^3, neutral lift {:.3f} kg, burst height {:.0f} m'.format(4./3.*np.pi*ascent_launch_radius**3, ascent_neutral_lift, ascent_burst_height))
-    if descent_velocity is not None:
-        print('Descent balloon: fill volume {:.3f} m^3, neutral lift {:.3f} kg, burst height {:.0f} m'.format(4./3.*np.pi*descent_launch_radius**3, descent_neutral_lift, descent_burst_height))
-    print('Landing point: {:.5f}° {:.5f}° {:.0f} m'.format(
-            track.segments[-1].points[-1].longitude,
-            track.segments[-1].points[-1].latitude,
-            track.segments[-1].points[-1].elevation))
+    if hourly: # Hourly landing site forecast.
+        forecast_length = hourly
+        gpx = gpxpy.gpx.GPX()
+        gpx.name = 'Hourly forecast'
+        hourly_track = gpxpy.gpx.GPXTrack()
+        hourly_segment = gpxpy.gpx.GPXTrackSegment()
+        dt = utils.roundHours(datetime.datetime.utcnow(), 1) # Round current time up to next full hour.
+        for i_hour in range(forecast_length):
+            filename = download_model_data.getGfsData(launch_lon, launch_lat, dt, model_path)
+            if filename is None:
+                break
+            model_data = readGfsData(filename)
+            flight_track, ascent_launch_radius, ascent_neutral_lift, ascent_burst_height, \
+            descent_launch_radius, descent_neutral_lift, descent_burst_height = predictBalloonFlight(
+                launch_lon, launch_lat, launch_altitude, launch_datetime,
+                payload_weight, payload_area, ascent_velocity, 
+                ascent_balloon_parameters, fill_gas, parachute_parameters, 
+                model_data, timestep, 
+                descent_velocity=descent_velocity, 
+                descent_balloon_parameters=descent_balloon_parameters,
+                cut_altitude=cut_altitude)
+            landing_lon = flight_track.segments[-1].points[-1].longitude
+            landing_lat = flight_track.segments[-1].points[-1].latitude
+            landing_alt = flight_track.segments[-1].points[-1].elevation
+            flight_range = geog.distance([launch_lon, launch_lat], [landing_lon, landing_lat]) / 1000.
+            print('Launch {}: landing at {:.5f}° {:.5f}° {:.0f} m, range {:.1f} km'.format(
+                    dt, landing_lon, landing_lat, landing_alt, flight_range))
+            gpx.waypoints.append(gpxpy.gpx.GPXWaypoint(
+                    landing_lat,
+                    landing_lon,
+                    elevation=landing_alt,
+                    time=dt,
+                    name='{}'.format(dt),
+                    description='Launch at {}, range {:.1f} km'.format(dt, flight_range)))
+            hourly_segment.points.append(gpxpy.gpx.GPXTrackPoint(
+                    landing_lat,
+                    landing_lon,
+                    elevation=landing_alt,
+                    time=dt))
+            dt += datetime.timedelta(hours=1)
+        hourly_track.segments.append(hourly_segment)
+        gpx.tracks.append(hourly_track)
+        writeGpx(gpx, output_file)
 
-    # Write out track as GPX.
-    writeGpx(track, output_file, description=track.description)
+    else: # Normal trajectory computation.
+        # Download and read in model data.
+        model_filename = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
+        if model_filename is None:
+            print('Error retrieving model data.')
+            return
+        model_data = readGfsData(model_filename)
+    
+        # Do prediction.
+        track, ascent_launch_radius, ascent_neutral_lift, ascent_burst_height, \
+        descent_launch_radius, descent_neutral_lift, descent_burst_height = predictBalloonFlight(
+            launch_lon, launch_lat, launch_altitude, launch_datetime,
+            payload_weight, payload_area, ascent_velocity, 
+            ascent_balloon_parameters, fill_gas, parachute_parameters, 
+            model_data, timestep, 
+            descent_velocity=descent_velocity, 
+            descent_balloon_parameters=descent_balloon_parameters,
+            cut_altitude=cut_altitude, descent_only=descent_only)
+        if ascent_launch_radius is not None:
+            print('Ascent balloon: fill volume {:.3f} m^3, neutral lift {:.3f} kg, burst height {:.0f} m'.format(4./3.*np.pi*ascent_launch_radius**3, ascent_neutral_lift, ascent_burst_height))
+        if descent_velocity is not None:
+            print('Descent balloon: fill volume {:.3f} m^3, neutral lift {:.3f} kg, burst height {:.0f} m'.format(4./3.*np.pi*descent_launch_radius**3, descent_neutral_lift, descent_burst_height))
+        print('Landing point: {:.5f}° {:.5f}° {:.0f} m'.format(
+                track.segments[-1].points[-1].longitude,
+                track.segments[-1].points[-1].latitude,
+                track.segments[-1].points[-1].elevation))
+    
+        # Write out track as GPX.
+        writeGpx(track, output_file, description=track.description)
 
     return
 
@@ -377,11 +435,12 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--ini', required=False, default='flight.ini', help='Configuration ini file name (default: flight.ini)')
     parser.add_argument('-p', '--position', required=False, default=None, help='Start position lon,lat,alt')
     parser.add_argument('-d', '--descent-only', required=False, action='store_true', default=False, help='Descent only')
-    parser.add_argument('-o', '--output', required=False, default='/tmp/trajectory.gpx', help='Output file')
+    parser.add_argument('-t', '--timely', required=False, type=int, default=None, help='Do hourly prediction and show landing sites for given number of hours')
+    parser.add_argument('-o', '--output', required=False, default=None, help='Output file')
     args = parser.parse_args()
     launch_datetime = datetime.datetime.fromisoformat(args.launchtime)
     if args.position is not None:
         launch_pos = np.array(args.position.split(',')).astype(float)
     else:
         launch_pos = None
-    main(launch_datetime, config_file=args.ini, launch_pos=launch_pos, descent_only=args.descent_only, output_file=args.output)
+    main(launch_datetime, config_file=args.ini, launch_pos=launch_pos, descent_only=args.descent_only, hourly=args.timely, output_file=args.output)
