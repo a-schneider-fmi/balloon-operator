@@ -19,7 +19,7 @@ import email
 import os.path
 import sys
 import argparse
-from balloon_operator.trajectory_predictor import writeGpx
+from balloon_operator import trajectory_predictor
 
 
 class TrackerMessageFields(Enum):
@@ -388,7 +388,7 @@ def main(config_file, output_file=None, all_messges=False):
     gpx_track = gpxpy.gpx.GPXTrack()
     gpx_track.segments.append(gpx_segment)
     if output_file:
-        writeGpx(gpx_track, output_file, name='Artemis Tracker')
+        trajectory_predictor.writeGpx(gpx_track, output_file, name='Artemis Tracker')
     return
 
 
