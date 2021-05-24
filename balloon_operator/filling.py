@@ -185,24 +185,32 @@ def twoBalloonFilling(
     return asc_launch_radius, desc_launch_radius, asc_neutral_lift, desc_neutral_lift, asc_burst_height, desc_burst_height
 
 
-def main(balloon_weight, payload_weight, launch_radius, fill_gas=FillGas.HELIUM, parameter_file='totex_balloon_parameters.tsv'):
+def main(balloon_weight, payload_weight, launch_radius, ascent_velocity=None, fill_gas=FillGas.HELIUM, parameter_file='totex_balloon_parameters.tsv'):
     """
     Main function to calculate balloon performance from command line.
     """
     balloon_parameter_list = readBalloonParameterList(parameter_file)
     balloon_parameters = lookupParameters(balloon_parameter_list, balloon_weight)
-    neutral_lift, ascent_velocity, burst_height = balloonPerformance(
-            balloon_parameters, payload_weight, launch_radius=launch_radius,
-            fill_gas=fill_gas)
-    print('neutral lift {:.3f} kg, ascent velocity {:.1f} m/s, burst height {:.0f} m'.format(neutral_lift, ascent_velocity, burst_height))
+    if ascent_velocity is None:
+        neutral_lift, ascent_velocity, burst_height = balloonPerformance(
+                balloon_parameters, payload_weight, launch_radius=launch_radius,
+                fill_gas=fill_gas)
+        print('Neutral lift {:.3f} kg, ascent velocity {:.1f} m/s, burst height {:.0f} m'.format(neutral_lift, ascent_velocity, burst_height))
+    else:
+        launch_radius, neutral_lift, burst_height = balloonFilling(
+                balloon_parameters, payload_weight, ascent_velocity, fill_gas=fill_gas)
+        print('Fill radius {:.3f} m, fill volume {:.2f} m^3, neutral lift: {} kg, burst altitude: {:.0f} m'.format(
+                launch_radius, 4./3.*np.pi*launch_radius**3, neutral_lift, burst_height))
     return
 
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('balloon', type=int, help='Balloon type (weight)')
-    parser.add_argument('payload', type=float, help='Payload weight')
-    parser.add_argument('radius', type=float, help='Launch radius')
+    parser.add_argument('balloon', type=int, help='Balloon type (weight in g)')
+    parser.add_argument('payload', type=float, help='Payload weight in kg')
+    parser.add_argument('radius', type=float, help='Launch radius in m')
+    parser.add_argument('-v', '--velocity', required=False, type=int, default=None, help='Ascent velocity in m/s')
+    parser.add_argument('-g', '--gas', required=False, default='helium', help='Fill gas (hydrogen or helium)')
     args = parser.parse_args()
-    main(args.balloon, args.payload, args.radius)
+    main(args.balloon, args.payload, args.radius, ascent_velocity=args.velocity, fill_gas=fillGas(args.gas))
