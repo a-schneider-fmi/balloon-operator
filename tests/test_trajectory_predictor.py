@@ -15,15 +15,15 @@ so_launch_lon = 26.6294
 so_launch_lat = 67.3665
 
 
-def test_readGfsData(verbose=False):
+def test_readGfsDataFiles(verbose=False):
     """
-    Unit test for readGfsData
+    Unit test for readGfsDataFile
     """
     model_path = '/tmp'
     launch_datetime = datetime.datetime.utcnow() + datetime.timedelta(days=1)
-    model_filename = download_model_data.getGfsData(so_launch_lon, so_launch_lat, launch_datetime, model_path)
-    assert(model_filename is not None)
-    model_data = trajectory_predictor.readGfsData(model_filename)
+    model_filenames = download_model_data.getGfsData(so_launch_lon, so_launch_lat, launch_datetime, model_path)
+    assert(model_filenames is not None)
+    model_data = trajectory_predictor.readGfsDataFiles(model_filenames)
 
 
 def test_equidistantAltitudeGrid(verbose=False):
@@ -59,6 +59,6 @@ def test_main():
 
 
 if __name__ == "__main__":
-    test_readGfsData(verbose=True)
+    test_readGfsDataFiles(verbose=True)
     test_equidistantAltitudeGrid(verbose=True)
     test_main()

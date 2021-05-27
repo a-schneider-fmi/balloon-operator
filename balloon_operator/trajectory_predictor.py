@@ -18,6 +18,7 @@ import gpxpy.gpx
 import srtm
 import geog
 import configparser
+import os.path
 import argparse
 from balloon_operator import filling, parachute, download_model_data, constants, sbd_receiver, comm, utils
 
@@ -39,15 +40,15 @@ def m2deg(lon, lat, u, v):
     return u_deg, v_deg
 
 
-def readGfsData(filename):
+def readGfsDataFile(filename):
     """
     Read in GFS data file
 
     @param filename name of GFS GRIB data file
 
     @return model_data a dictionary with the model data with the following keys:
-        'press', 'lon', 'lat', 'surface_pressure', 'surface_altitude',
-        'u_wind_deg', 'v_wind_deg'
+        'datetime', 'press', 'lon', 'lat', 'surface_pressure', 'surface_altitude',
+        'altitude', 'u_wind_deg', 'v_wind_deg'
     """
     grbidx = pygrib.open(filename)
     # Get levels in GRIB file. Assume all variables have same order of levels.
@@ -58,6 +59,7 @@ def readGfsData(filename):
             lat, lon = grb.latlons()
             lat = lat[:,0]
             lon = lon[0,:]
+            dt = grb.validDate
     # Read in data.
     u_wind = np.zeros((len(levels), len(lon), len(lat)))
     v_wind = np.zeros((len(levels), len(lon), len(lat)))
@@ -91,9 +93,46 @@ def readGfsData(filename):
     # Convert winds from m/s to deg/s
     for ind_level in range(len(levels)):
         u_wind[ind_level, :, :], v_wind[ind_level, :, :] = m2deg(lon, lat, u_wind[ind_level, :, :], v_wind[ind_level, :, :])
-    return {'press': np.array(levels)*100., 'lon': lon, 'lat': lat, # convert levels from hPa to Pa
+    return {'datetime': dt, 'press': np.array(levels)*100., 'lon': lon, 'lat': lat, # convert levels from hPa to Pa
             'surface_pressure': surface_pressure, 'surface_altitude': surface_altitude, 
             'altitude': altitude, 'u_wind_deg': u_wind, 'v_wind_deg': v_wind}
+
+
+def readGfsDataFiles(filelist):
+    """
+    Read in a collection of GFS data files.
+
+    @param filelist list of filenames to read
+
+    @return data a dictionary with the read model data with the following keys:
+        'datetime', 'press', 'lon', 'lat', 'surface_pressure', 'surface_altitude',
+        'altitude', 'u_wind_deg', 'v_wind_deg'
+        Variables (but not lon, lat, press) have one dimension more than from readGfsDataFile.
+    """
+    data = None
+    for ind_file in range(len(filelist)):
+        this_data = readGfsDataFile(filelist[ind_file])
+        if data is None:
+            data = {'datetime': np.array([None]*len(filelist)),
+                    'press': this_data['press'],
+                    'lon': this_data['lon'],
+                    'lat': this_data['lat'],
+                    'surface_pressure': np.zeros((len(filelist),len(this_data['lon']),len(this_data['lat']))),
+                    'surface_altitude': np.zeros((len(filelist),len(this_data['lon']),len(this_data['lat']))),
+                    'altitude': np.zeros((len(filelist),len(this_data['press']),len(this_data['lon']),len(this_data['lat']))),
+                    'u_wind_deg': np.zeros((len(filelist),len(this_data['press']),len(this_data['lon']),len(this_data['lat']))),
+                    'v_wind_deg': np.zeros((len(filelist),len(this_data['press']),len(this_data['lon']),len(this_data['lat'])))}
+        data['datetime'][ind_file] = this_data['datetime']
+        assert (data['press'].shape == this_data['press'].shape and (data['press'] == this_data['press']).all())
+        assert (data['lon'].shape == this_data['lon'].shape and (data['lon'] == this_data['lon']).all())
+        assert (data['lat'].shape == this_data['lat'].shape and (data['lat'] == this_data['lat']).all())
+        data['surface_pressure'][ind_file,:,:] = this_data['surface_pressure']
+        data['surface_altitude'][ind_file,:,:] = this_data['surface_altitude']
+        data['altitude'][ind_file,:,:,:] = this_data['altitude']
+        data['u_wind_deg'][ind_file,:,:,:] = this_data['u_wind_deg']
+        data['v_wind_deg'][ind_file,:,:,:] = this_data['v_wind_deg']
+        del this_data
+    return data
 
 
 def equidistantAltitudeGrid(start_datetime, start_altitude, end_altitude, ascent_velocity, timestep):
@@ -135,8 +174,9 @@ def predictTrajectory(dt, altitude, model_data, lon_start, lat_start):
     # the launch position with an exponential fit.
     i_start = np.argmin(np.abs(model_data['lon']-lon_start))
     j_start = np.argmin(np.abs(model_data['lat']-lat_start))
+    t_start = 0
     expfun = lambda x,a,b: a*np.exp(b*x)
-    popt, pcov = curve_fit(expfun,  model_data['altitude'][:, i_start, j_start],  model_data['press'],  p0=(model_data['surface_pressure'][i_start, j_start], -1./8300.))
+    popt, pcov = curve_fit(expfun,  model_data['altitude'][t_start, :, i_start, j_start],  model_data['press'],  p0=(model_data['surface_pressure'][t_start, i_start, j_start], -1./8300.))
     pressure = expfun(altitude, popt[0], popt[1])
     max_model_press = np.max(model_data['press'])
     min_model_press = np.min(model_data['press'])
@@ -145,20 +185,28 @@ def predictTrajectory(dt, altitude, model_data, lon_start, lat_start):
     # Displace balloon by model winds.
     lon = lon_start
     lat = lat_start
-    interp_u = RegularGridInterpolator((model_data['press'],model_data['lon'],model_data['lat']), model_data['u_wind_deg'])
-    interp_v = RegularGridInterpolator((model_data['press'],model_data['lon'],model_data['lat']), model_data['v_wind_deg'])
+    time_grid = np.array([(this_dt-model_data['datetime'][0]).total_seconds() for this_dt in model_data['datetime']])
+    interp_u = RegularGridInterpolator((time_grid,model_data['press'],model_data['lon'],model_data['lat']), model_data['u_wind_deg'])
+    interp_v = RegularGridInterpolator((time_grid,model_data['press'],model_data['lon'],model_data['lat']), model_data['v_wind_deg'])
     has_landed = False
     for ind in range(len(dt)):
         if ind > 0:
             delta_t = (dt[ind] - dt[ind-1]).total_seconds()
-            u = interp_u([pressure[ind], lon, lat])[0]
-            v = interp_v([pressure[ind], lon, lat])[0]
+            grid_time = (dt[ind]-model_data['datetime'][0]).total_seconds()
+            if grid_time > time_grid[-1]:
+                grid_time = time_grid[-1] # Cap time outside grid
+                print('Capping time outside grid: {} > {}'.format(dt[ind], model_data['datetime'][-1]))
+            if grid_time < time_grid[0]:
+                grid_time = time_grid[0] # Cap time outside grid
+                print('Capping time outside grid: {} < {}'.format(dt[ind], model_data['datetime'][0]))
+            u = interp_u([grid_time, pressure[ind], lon, lat])[0]
+            v = interp_v([grid_time, pressure[ind], lon, lat])[0]
             lon += delta_t * u
             lat += delta_t * v
             surface_elevation = srtm.get_elevation(lat, lon)
             if surface_elevation is not None and altitude[ind] <= surface_elevation:
                 # Compute after which fraction of the last time step the ground
-                # has been hit, and go back this time step.
+                # has been hit, and go back accordingly.
                 # This approach assumes no steep slopes.
                 below_ground = surface_elevation - altitude[ind]
                 timestep_fraction = below_ground / (altitude[ind] - altitude[ind-1])
@@ -177,6 +225,21 @@ def predictTrajectory(dt, altitude, model_data, lon_start, lat_start):
 def predictAscent(launch_datetime, launch_lon, launch_lat, launch_altitude,
                   top_height, ascent_velocity, model_data, timestep):
     """
+    Predict trajectory for balloon ascent.
+
+    @param launch_datetime datetime of launch
+    @param launch_lon longitude of launch in degrees
+    @param launch_lat latitude of launch in degrees
+    @param launch_altitude altitude of launch in m
+    @param top_height ceiling of balloon in m
+    @param ascent_velocity balloon ascent velocity in m/s
+    @param model_data model data
+    @param timestep time step in s
+
+    @return segment_ascent trajectory as gpx track segment
+    @return top_lon ceiling longitude in degrees
+    @return top_lat ceiling latitude in degrees
+    @return top_datetime ceiling datetime
     """
     datetime_ascent, alt_ascent = equidistantAltitudeGrid(launch_datetime, launch_altitude, top_height, ascent_velocity, timestep)
     segment_ascent = predictTrajectory(datetime_ascent, alt_ascent, model_data, launch_lon, launch_lat)
@@ -190,6 +253,22 @@ def predictAscent(launch_datetime, launch_lon, launch_lat, launch_altitude,
 def predictDescent(top_datetime, top_lon, top_lat, top_height, descent_velocity, 
                    parachute_parameters, payload_weight, payload_area, model_data, timestep):
     """
+    Predict trajectory for balloon descent.
+
+    @param top_datetime datetime at ceiling
+    @param top_lon longitude at ceiling in degrees
+    @param top_lat latitude at ceiling in degrees
+    @param top_height altitude at ceiling in m
+    @param descent_velocity descent velocity in m/s or None to simulate descent on parachute
+    @param parachute_parameters parachute parameters
+    @param payload_weight payload weight in kg
+    @param payload_area payload area in m^2
+    @param model_data model data
+    @param timestep time step in s
+
+    @return segment_descent trajectory as gpx track segment
+    @return landing_lon landing longitude in degrees
+    @return landing_lat landing latitude in degrees
     """
     if descent_velocity is not None:
         assert(descent_velocity > 0)
@@ -213,9 +292,9 @@ def predictBalloonFlight(
     Predict a balloon flight for given payload and launch parameters.
 
     @param launch_datetime datetime of launch
-    @param launch_lon longitude of launch point
-    @param launch_lat latitude of launch point
-    @param launch_altitude altitude of launch point
+    @param launch_lon longitude of launch point in degrees
+    @param launch_lat latitude of launch point in degrees
+    @param launch_altitude altitude of launch point in m
     @param payload_weight payload weight in kg
     @param payload_area payload area in m^2
     @param ascent_velocity desired ascent velocity in m/s
@@ -301,6 +380,7 @@ def liveForecast(
         networklink = kml_output if isinstance(kml_output,str) else None
         refreshinterval = 60
         webpage = None
+    output_dir = ''
     if config.has_section('output'):
         if 'format' in config['output']:
             if config['output'].get('format').lower() == 'kml':
@@ -309,10 +389,12 @@ def liveForecast(
                 kml_output = False
         if 'filename' in config['output']:
             output_file = config['output'].get('filename')
+        if 'directory' in config['output']:
+            output_dir = config['output'].get('directory')
 
     # Read model data.
-    filename = download_model_data.getGfsData(launch_lon, launch_lat, datetime.datetime.utcnow(), model_path)
-    model_data = readGfsData(filename)
+    filelist = download_model_data.getGfsData(launch_lon, launch_lat, datetime.datetime.utcnow(), model_path)
+    model_data = readGfsDataFiles(filelist)
 
     # Do live prediction.
     print('Starting live forecast. Waiting for messages ...')
@@ -375,9 +457,9 @@ def liveForecast(
                     elevation=segment_descent.points[-1].elevation,
                     time=segment_descent.points[-1].time, name='Landing'))
             if kml_output:
-                writeKml(track, output_file, waypoints=waypoints, networklink=networklink, refreshinterval=refreshinterval, upload=upload)
+                writeKml(track, os.path.join(output_dir, output_file), waypoints=waypoints, networklink=networklink, refreshinterval=refreshinterval, upload=upload)
             else:
-                writeGpx(track, output_file, waypoints=waypoints, upload=upload)
+                writeGpx(track, os.path.join(output_dir, output_file), waypoints=waypoints, upload=upload)
             if webpage:
                 createWebpage(track, waypoints, webpage, upload=upload)
         time.sleep(poll_time)
@@ -610,12 +692,12 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
         gpx.name = 'Hourly forecast'
         hourly_track = gpxpy.gpx.GPXTrack()
         hourly_segment = gpxpy.gpx.GPXTrackSegment()
-        dt = utils.roundHours(datetime.datetime.utcnow(), 1) # Round current time up to next full hour.
+        launch_datetime = utils.roundHours(datetime.datetime.utcnow(), 1) # Round current time up to next full hour.
         for i_hour in range(forecast_length):
-            filename = download_model_data.getGfsData(launch_lon, launch_lat, dt, model_path)
-            if filename is None:
+            filelist = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
+            if filelist is None:
                 break
-            model_data = readGfsData(filename)
+            model_data = readGfsDataFiles(filelist)
             flight_track, waypoints, flight_range = predictBalloonFlight(
                 launch_datetime, launch_lon, launch_lat, launch_altitude,
                 payload_weight, payload_area, ascent_velocity, top_height,
@@ -626,32 +708,34 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
             landing_lat = flight_track.segments[-1].points[-1].latitude
             landing_alt = flight_track.segments[-1].points[-1].elevation
             flight_range = geog.distance([launch_lon, launch_lat], [landing_lon, landing_lat]) / 1000.
-            print('Launch {}: landing at {:.5f}° {:.5f}° {:.0f} m, range {:.1f} km'.format(
-                    dt, landing_lon, landing_lat, landing_alt, flight_range))
+            duration = flight_track.segments[-1].points[-1].time - launch_datetime
+            print('Launch {}: landing at {:.5f}° {:.5f}° {:.0f} m, range {:.1f} km, duration {}'.format(
+                    launch_datetime, landing_lon, landing_lat, landing_alt, flight_range, duration))
             gpx.waypoints.append(gpxpy.gpx.GPXWaypoint(
                     landing_lat,
                     landing_lon,
                     elevation=landing_alt,
-                    time=dt,
-                    name='{}'.format(dt),
-                    description='Launch at {}, range {:.1f} km'.format(dt, flight_range)))
+                    time=launch_datetime,
+                    name='{}'.format(launch_datetime),
+                    description='Launch at {}, range {:.1f} km'.format(launch_datetime, flight_range)))
             hourly_segment.points.append(gpxpy.gpx.GPXTrackPoint(
                     landing_lat,
                     landing_lon,
                     elevation=landing_alt,
-                    time=dt))
-            dt += datetime.timedelta(hours=1)
+                    time=launch_datetime))
+            del model_data
+            launch_datetime += datetime.timedelta(hours=1)
         hourly_track.segments.append(hourly_segment)
         gpx.tracks.append(hourly_track)
         writeGpx(gpx, output_file)
 
     else: # Normal trajectory computation.
         # Download and read in model data.
-        model_filename = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
-        if model_filename is None:
+        model_filenames = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
+        if model_filenames is None:
             print('Error retrieving model data.')
             return
-        model_data = readGfsData(model_filename)
+        model_data = readGfsDataFiles(model_filenames)
     
         # Do prediction.
         track, waypoints, flight_range = predictBalloonFlight(

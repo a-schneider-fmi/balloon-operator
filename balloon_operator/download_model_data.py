@@ -142,7 +142,7 @@ def downloadGfs(lon_range, lat_range, model_datetime, forecast_time, dest_dir, m
                 return None
 
 
-def getGfsData(launch_lon, launch_lat, launch_datetime, dest_dir, model_resolution=0.25):
+def getGfsData(launch_lon, launch_lat, launch_datetime, dest_dir, model_resolution=0.25, timesteps=4):
     """
     Download GFS data around a given launch location for a given launch datetime.
 
@@ -151,6 +151,7 @@ def getGfsData(launch_lon, launch_lat, launch_datetime, dest_dir, model_resoluti
     @param launch_datetime datetime of the launch
     @param dest_dir directory to which model data shall be downloaded
     @param model_resolution model resolution in degrees (default 0.5)
+    @param timesteps number of forecasts to download (default: 4)
 
     @return filename the filename (inclusive path) of the downloaded file, or None if unsuccessful
     """
@@ -162,4 +163,9 @@ def getGfsData(launch_lon, launch_lat, launch_datetime, dest_dir, model_resoluti
             break
         gfs_datetime -= datetime.timedelta(hours=6)
         forecast_time += 6
-    return filename
+    filelist = [filename]
+    for delta_t in range(1,timesteps):
+        filename = downloadGfs(lon_range, lat_range, gfs_datetime, forecast_time+delta_t, dest_dir, model_resolution=model_resolution)
+        if filename is not None:
+            filelist.append(filename)
+    return filelist
