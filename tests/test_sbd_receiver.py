@@ -25,18 +25,31 @@ def test_checksum(verbose=False):
         assert(cs_a == test_results[ind][0] and cs_b == test_results[ind][1])
 
 
-def test_translateSbd(verbose=False):
+def test_parseSbd(verbose=False):
     """
-    Unit test for translateSbd
+    Unit test for parseSbd
     """
     test_message = b'\x02\ti\x01\n\xcf\x03\x0b\x1d\x05\x14\xe5\x07\x05\x07\n\x17\x19\x15"T\'(\x16\x9eG\xdf\x0f\x17\x12\xe1\x02\x00\x03\x96n'
     message_translation = {
             'BATTV': 3.61, 'PRESS': 975, 'TEMP': 1309, 
             'DATETIME': datetime.datetime(2021, 5, 7, 10, 23, 25),
             'LAT': 67.3666082, 'LON': 26.6291102, 'ALT': 188.69}
-    data = sbd_receiver.translateSbd(test_message)
+    data = sbd_receiver.parseSbd(test_message)
     if verbose: print(data)
     assert(data == message_translation)
+
+
+def test_encodeSdb(verbose=False):
+    """
+    Unit test for encodeSbd
+    """
+    test_data = {
+            'BATTV': 3.61, 'PRESS': 975, 'TEMP': 1309, 
+            'DATETIME': datetime.datetime(2021, 5, 7, 10, 23, 25),
+            'LAT': 67.3666082, 'LON': 26.6291102, 'ALT': 188.69}
+    message = sbd_receiver.encodeSdb(test_data)
+    if verbose: print(message)
+    assert(sbd_receiver.parseSbd(message) == test_data)
 
 
 def test_message2trackpoint(verbose=False):
@@ -56,5 +69,6 @@ def test_message2trackpoint(verbose=False):
 
 if __name__ == "__main__":
     test_checksum(verbose=True)
-    test_translateSbd(verbose=True)
+    test_parseSbd(verbose=True)
+    test_encodeSdb(verbose=True)
     test_message2trackpoint(verbose=True)

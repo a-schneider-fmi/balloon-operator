@@ -19,7 +19,9 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 * [geog](https://github.com/jwass/geog)
 * [gpxpy](https://github.com/tkrajina/gpxpy)
 * [srtm-python](https://github.com/aatishnn/srtm-python)
-* [simplekml](https://pypi.org/project/simplekml)
+* [simplekml](https://github.com/eisoldt/simplekml)
+* [paramiko](https://github.com/paramiko/paramiko)
+* [Folium](https://github.com/python-visualization/folium)
 
 
 ## Data
@@ -42,8 +44,9 @@ Arguments:
 * `-d` : compute descent only
 * `-t [duration]` : compute hourly prediction for `duration` hours
 * `-l comm.ini` : do live forcast receiving current location as specified in comm.ini
-* `-k [networklink]` output result in KML format instead of GPX, optionally adding a network link
-* `-o output_filename` write output in file `output_filename`
+* `-k [networklink]`: output result in KML format instead of GPX, optionally adding a network link
+* `-w webpage_filename`: create an HTML + JavaScript web page and write it to given file
+* `-o output_filename`: write output in file `output_filename`
 
 ### Flight configuration file
 
@@ -70,12 +73,24 @@ An example is included in `flight.ini`. The configuration file contains:
 
 ### Communications configuration file
 
-An example is included in `sbd_receiver.ini`. The configuration contains:
+An example is included in `comm.ini`. The configuration contains:
 * options in section `email`:
     * `host`: hostname to query mails with SBD messages via IMAP
     * `user`: username for IMAP
     * `password`: password for IMAP
     * `from`: from address to be filtered for, e.g. `300123456789012@rockblock.rock7.com`
+* options in section `webserver`:
+    * `protocol`: protocol by which to upload data to webserver, `ftp`, `sftp` or `post`
+    * `host`: hostname on which to upload results (or upload URL for post method)
+    * `user`: username with which to login (FTP and SFTP)
+    * `password`: password (FTP and SFTP) or access token (post)
+    * `directory`: directory to which to upload resulting files
+    * `webpage`: file name for generated HTML file
+    * `networklink`: URL for network link to include in KML file
+    * `refreshinterval`: refresh interval for KML network link in seconds
+* options in section `output`:
+    * `format`: format in which to create output files, `gpx` or `kml`
+    * `filename`: output file name for (GPX or KML) trajectory
 
 ### Balloon parameter TSV file
 

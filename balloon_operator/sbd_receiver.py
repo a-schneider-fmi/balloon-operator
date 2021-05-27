@@ -227,7 +227,7 @@ def checksum(data):
     return cs_a, cs_b
 
 
-def translateSbd(message):
+def parseSbd(message):
     """
     Parse binary SBD message from Sparkfun Artemis Global Tracker.
 
@@ -272,6 +272,45 @@ def translateSbd(message):
     assert (message[ind] == cs_a), 'Checksum mismatch'
     assert (message[ind+1] == cs_b), 'Checksum mismatch'
     return data
+
+
+def encodeSdb(data):
+    """
+    Create a binary SBD message in Sparkfun Artemis Global Tracker format.
+
+    @param data dictionary with data to send, with keys named according to TrackerMessageFields names
+
+    @return message encoded binary SBD message
+    """
+    message = b''
+    message += np.uint8(TrackerMessageFields.STX.value)
+    for field in TrackerMessageFields:
+        if field.name in data:
+            message += np.uint8(field.value)
+            if field == TrackerMessageFields.DATETIME:
+                message += struct.pack(
+                        'HBBBBB',
+                        data[field.name].year, data[field.name].month,
+                        data[field.name].day, data[field.name].hour,
+                        data[field.name].minute, data[field.name].second)
+            elif isinstance(FIELD_TYPE[field], np.dtype): # dtype of scalar
+                rawvalue = np.array([ data[field.name] ])
+                if field in CONVERSION_FACTOR:
+                    rawvalue /= CONVERSION_FACTOR[field]
+                message += rawvalue.astype(FIELD_TYPE[field]).tobytes()
+                del rawvalue
+            elif isinstance(FIELD_TYPE[field], tuple): # dtype and length of array
+                assert(len(data[field.name]) == FIELD_TYPE[field][1])
+                rawdata = np.array(data[field.name])
+                if field in CONVERSION_FACTOR:
+                    rawdata /= CONVERSION_FACTOR[field]
+                message += rawdata.astype(FIELD_TYPE[field]).tobytes()
+                del rawdata
+    message += np.uint8(TrackerMessageFields.ETX.value)
+    cs_a, cs_b = checksum(message)
+    message += cs_a
+    message += cs_b
+    return message
 
 
 def message2trackpoint(msg):
@@ -365,9 +404,9 @@ def getMessages(imap, from_address='@rockblock.rock7.com', all_messges=False):
     sbd_list = queryMail(imap, from_address=from_address, unseen_only=not all_messges)
     for sbd in sbd_list:
         try:
-            messages.append(translateSbd(sbd))
+            messages.append(parseSbd(sbd))
         except (ValueError, AssertionError) as err:
-            print('Error translating message: ',err)
+            print('Error parsing message: {}'.format(err))
             pass
     return messages
 
@@ -394,7 +433,7 @@ def main(config_file, output_file=None, all_messges=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--ini', required=False, default='sbd_receiver.ini', help='Configuration ini file name')
+    parser.add_argument('-i', '--ini', required=False, default='comm.ini', help='Configuration ini file name')
     parser.add_argument('-a', '--all', required=False, action='store_true', default=False, help='Retrieve all messages, not only unread ones')
     parser.add_argument('-o', '--output', required=False, default=None, help='Output file')
     args = parser.parse_args()
