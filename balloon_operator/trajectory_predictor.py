@@ -236,7 +236,7 @@ def predictAscent(launch_datetime, launch_lon, launch_lat, launch_altitude,
     @param model_data model data
     @param timestep time step in s
 
-    @return segment_ascent trajectory as gpx track segment
+    @return segment_ascent trajectory as gpxpy.gpx.GPXTrackSegment object
     @return top_lon ceiling longitude in degrees
     @return top_lat ceiling latitude in degrees
     @return top_datetime ceiling datetime
@@ -266,7 +266,7 @@ def predictDescent(top_datetime, top_lon, top_lat, top_height, descent_velocity,
     @param model_data model data
     @param timestep time step in s
 
-    @return segment_descent trajectory as gpx track segment
+    @return segment_descent trajectory as gpxpy.gpx.GPXTrackSegment object
     @return landing_lon landing longitude in degrees
     @return landing_lat landing latitude in degrees
     """
@@ -303,7 +303,6 @@ def predictBalloonFlight(
     @param model_data model data
     @param timestep time step in s
     @param descent_velocity desired descent velocity for descent on balloon (None for descent on parachute)
-    @param descent_balloon_parameters parameters of descent balloon
     @param descent_only whether to compute descent only (default: False)
 
     @return track trajectory as gpxpy.gpx.GPXTrack() object
@@ -348,13 +347,28 @@ def predictBalloonFlight(
 def liveForecast(
         launch_lon, launch_lat, launch_altitude,
         payload_weight, payload_area, ascent_velocity, top_height,
-        ascent_balloon_parameters, fill_gas, parachute_parameters,
+        parachute_parameters,
         timestep, model_path, output_file,
         descent_velocity=None, 
         ini_file='comm.ini',
         kml_output=None):
     """
     Do a live forecast.
+
+    @param launch_lon longitude of launch point in degrees
+    @param launch_lat latitude of launch point in degrees
+    @param launch_altitude altitude of launch point in m
+    @param payload_weight payload weight in kg
+    @param payload_area payload area in m^2
+    @param ascent_velocity desired ascent velocity in m/s
+    @param top_height balloon ceiling height in m
+    @param parachute_parameters named array with parachute parameters
+    @param timestep time step in s
+    @param model_path directory where model data shall be stored
+    @param output_file filename to which to write the resulting gpx or kml
+    @param descent_velocity desired descent velocity for descent on balloon (None for descent on parachute)
+    @param ini_file Configuration file for message retrieval and webserver upload (default: 'comm.ini')
+    @param kml_output whether to output kml istead of gpx (overwritten by configuration file)
     """
     # Read communication configuration.
     config = configparser.ConfigParser()
@@ -474,7 +488,10 @@ def writeGpx(track, output_file, waypoints=None, name=None, description=None, up
 
     @param track gpxpy.gpx.GPXTrack object with trajectory or gpxpy.gpx.GPX object
     @param output_file the filename to which the track shall be written
+    @param waypoints list of gpxpy.gpx.GPXWaypoint objects to be written as waypoints
+    @param name name of the gpx
     @param description string to be written into the description field of the gpx file
+    @param upload dictionary giving details of server upload, or None for no upload
     """
     if isinstance(track, gpxpy.gpx.GPX):
         gpx = track
@@ -492,7 +509,7 @@ def writeGpx(track, output_file, waypoints=None, name=None, description=None, up
         gpx.description = description
     if upload:
         try:
-            comm.uploadFile(upload, output_file, gpx.to_xml())
+            comm.uploadFile(upload, os.path.basename(output_file), gpx.to_xml())
         except Exception as err:
             print('Error uploading file to {}: {}'.format(upload['host'], err))
     with open(output_file, 'w') as fd:
@@ -507,8 +524,11 @@ def writeKml(track, output_file, waypoints=None, name=None, networklink=None, re
 
     @param track gpxpy.gpx.GPXTrack object with trajectory
     @param output_file the filename to which the track shall be written
+    @param waypoints list of gpxpy.gpx.GPXWaypoint objects to be output as markers
+    @param name name of the KML
     @param networklink URL to be added as network link in the KML
     @param refreshinterval interval in seconds to refresh the file over the network link
+    @param upload dictionary giving details of server upload, or None for no upload
     """
     import simplekml
     coords = []
@@ -534,7 +554,7 @@ def writeKml(track, output_file, waypoints=None, name=None, networklink=None, re
             kml.newpoint(name=waypoint.name, coords=[(waypoint.longitude,waypoint.latitude,waypoint.elevation)])
     if upload:
         try:
-            comm.uploadFile(upload, output_file, kml.kml())
+            comm.uploadFile(upload, os.path.basename(output_file), kml.kml())
         except Exception as err:
             print('Error uploading file to {}: {}'.format(upload['host'], err))
     print('Writing {}'.format(output_file))
@@ -542,15 +562,62 @@ def writeKml(track, output_file, waypoints=None, name=None, networklink=None, re
     return
 
 
-def createWebpage(track, waypoints, output_file, upload=None):
+def gpxTrackToFolium(track):
     """
-    Create an interactive webpage for the track.
+    Create a folium polyline object for a given gpx track segment.
+
+    @param track gpxpy.gpx.GPXTrack or gpxpy.gpx.GPXTrackSegment object with track (segment)
+
+    @return polyline folium.PolyLine object corresponding to the track segment
+    """
+    import folium
+    track_points = []
+    for segment in (track.segments if isinstance(track, gpxpy.gpx.GPXTrack) else [track]):
+        for point in segment.points:
+            track_points.append(tuple([point.latitude, point.longitude]))
+    return folium.PolyLine(track_points)
+
+
+def gpxWaypointToFolium(waypoint):
+    """
+    Convert a gpxpy waypoint to a folium marker.
+
+    @param waypoint gpxpy.gpx.GPXWaypoint object with waypoint
+
+    @return marker folium.Marker object corresponding to waypoint
+    """
+    import folium
+    return folium.Marker(
+            (waypoint.latitude, waypoint.longitude), tooltip=waypoint.name,
+            popup='<b>{}</b><br>{}Lon: {:.6f}°<br>Lat: {:.6f}°<br>Alt: {:.0f}m'.format(
+                    waypoint.name, '{}<br>'.format(waypoint.time) if waypoint.time else '',
+                    waypoint.longitude, waypoint.latitude, waypoint.elevation))
+
+
+def createWebpage(track, waypoints, output_file, upload=None, hourly=None):
+    """
+    Create an interactive webpage for the track, using the folium library.
+
+    @param track flight track as gpxpy.gpx.GPXTrack object
+    @param waypoints
+    @param output_file
+    @param upload
+    @param hourly
     """
     import folium
 
     # Create map.
-    track_center = track.get_center()
-    mymap = folium.Map(location=(track_center.latitude, track_center.longitude), tiles=None)
+    if hourly:
+        center_lat = np.mean([wp.latitude for wp in hourly])
+        center_lon = np.mean([wp.longitude for wp in hourly])
+    else:
+        track_center = track.get_center()
+        center_lat = track_center.latitude
+        center_lon = track_center.longitude
+    mymap = folium.Map(location=(center_lat, center_lon), tiles=None)
+    # Provide a selection of background tiles.
+    # For a comprehensive overview of available background tiles see
+    # https://leaflet-extras.github.io/leaflet-providers/preview/
     folium.TileLayer('openstreetmap', name='OpenStreetMap').add_to(mymap)
     folium.TileLayer('Stamen Terrain', name='Stamen Terrain').add_to(mymap)
     folium.TileLayer(
@@ -572,18 +639,24 @@ def createWebpage(track, waypoints, output_file, upload=None):
             tilematrixset='GoogleMapsCompatible_Level',
             attr='Imagery provided by services from the Global Imagery Browse Services (GIBS), operated by the NASA/GSFC/Earth Science Data and Information System (<a href="https://earthdata.nasa.gov">ESDIS</a>) with funding provided by NASA/HQ.').add_to(mymap)
     folium.map.LayerControl().add_to(mymap)
-    # Convert track
-    for segment in track.segments:
-        gpx_points = []
-        for point in segment.points:
-            gpx_points.append(tuple([point.latitude, point.longitude]))
-        folium.PolyLine(gpx_points).add_to(mymap)
-    for waypoint in waypoints:
-        folium.Marker((waypoint.latitude, waypoint.longitude), tooltip=waypoint.name,
-                      popup='<b>{}</b><br>Lon: {:.6f}°<br>Lat: {:.6f}°<br>Alt: {:.0f}m'.format(waypoint.name, waypoint.longitude, waypoint.latitude, waypoint.elevation)).add_to(mymap)
+    # Convert track(s)
+    if hourly:
+        assert (len(hourly) == len(track) + 1), 'Number of tracks does not correspond to number of clusters, {} + 1 != {}.'.format(len(track), len(hourly))
+        gpxWaypointToFolium(hourly[0]).add_to(mymap)
+        for ind in range(len(track)):
+            folium.Marker(
+                    (hourly[ind+1].latitude, hourly[ind+1].longitude),
+                    tooltip=hourly[ind+1].name, popup=hourly[ind+1].description).add_to(mymap)
+            gpxTrackToFolium(track[ind]).add_to(mymap)
+    else:
+        for segment in track.segments:
+            gpxTrackToFolium(segment).add_to(mymap)
+        for waypoint in waypoints:
+            gpxWaypointToFolium(waypoint).add_to(mymap)
+    # Export result.
     if upload:
         try:
-            comm.uploadFile(upload, output_file, mymap.get_root().render())
+            comm.uploadFile(upload, os.path.basename(output_file), mymap.get_root().render())
         except Exception as err:
             print('Error uploading file to {}: {}'.format(upload['host'], err))
     else:
@@ -592,7 +665,7 @@ def createWebpage(track, waypoints, output_file, upload=None):
     return
 
 
-def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=False, live=None, launch_pos=None, output_file=None, kml_output=None, webpage=None):
+def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=False, live=None, launch_pos=None, output_file=None, kml_output=None, webpage=None, upload=None):
     """
     Main function to make a trajectory prediction from a configuration file.
 
@@ -602,6 +675,11 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
     @param launch_pos launch position (longitude, latitude, altitude), overwrites
         position in ini file if specified
     @param output_file output filename for computed trajectory (default: '/tmp/trajectory.gpx')
+    @param hourly whether to do an hourly forecast, showing landing spots for diffent launch times (default: False)
+    @param live whether to do a live forecast, computation continuation of trajectory from tracker on balloon
+    @param kml_output output result in KML format instead of GPX, optionally embedding a network link
+    @param webpage create an interactive web page displaying the trajectory and write it to given file name
+    @param upload upload data to foreign host according to information in given ini file
     """
     # Read configuration.
     config = configparser.ConfigParser()
@@ -649,6 +727,11 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
         else:
             output_file += '.gpx'
 
+    if upload:
+        cfg_upload = configparser.ConfigParser()
+        cfg_upload.read(upload)
+        upload = cfg_upload['webserver']
+
     # Compute balloon performance. This is only needed once, even for multiple
     # forecasts with different launch time.
     if descent_velocity is not None: # If it's a two-balloon flight with descent on balloon.
@@ -680,7 +763,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
         liveForecast(
             launch_lon, launch_lat, launch_altitude,
             payload_weight, payload_area, ascent_velocity, top_height,
-            ascent_balloon_parameters, fill_gas, parachute_parameters,
+            parachute_parameters,
             timestep, model_path, output_file,
             descent_velocity=descent_velocity, 
             ini_file=live,
@@ -690,20 +773,29 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
         forecast_length = hourly
         gpx = gpxpy.gpx.GPX()
         gpx.name = 'Hourly forecast'
-        hourly_track = gpxpy.gpx.GPXTrack()
+        gpx.waypoints.append(gpxpy.gpx.GPXWaypoint(
+                launch_lat, launch_lon, elevation=launch_altitude,
+                name='Launch', description='Launch point'))
         hourly_segment = gpxpy.gpx.GPXTrackSegment()
+        individual_tracks = []
+        individual_waypoints = []
         launch_datetime = utils.roundHours(datetime.datetime.utcnow(), 1) # Round current time up to next full hour.
         for i_hour in range(forecast_length):
             filelist = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
             if filelist is None:
                 break
+            print('Forecast for launch at {} ...'.format(launch_datetime))
             model_data = readGfsDataFiles(filelist)
-            flight_track, waypoints, flight_range = predictBalloonFlight(
+            flight_track, flight_waypoints, flight_range = predictBalloonFlight(
                 launch_datetime, launch_lon, launch_lat, launch_altitude,
                 payload_weight, payload_area, ascent_velocity, top_height,
                 parachute_parameters, model_data, timestep, 
                 descent_velocity=descent_velocity, 
                 descent_only=descent_only)
+            flight_track.name = 'Launch {}'.format(launch_datetime)
+            flight_track.join(0)
+            individual_tracks.append(flight_track)
+            individual_waypoints.append(flight_waypoints)
             landing_lon = flight_track.segments[-1].points[-1].longitude
             landing_lat = flight_track.segments[-1].points[-1].latitude
             landing_alt = flight_track.segments[-1].points[-1].elevation
@@ -717,7 +809,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
                     elevation=landing_alt,
                     time=launch_datetime,
                     name='{}'.format(launch_datetime),
-                    description='Launch at {}, range {:.1f} km'.format(launch_datetime, flight_range)))
+                    description='Landing point for launch at {}, range {:.1f} km'.format(launch_datetime, flight_range)))
             hourly_segment.points.append(gpxpy.gpx.GPXTrackPoint(
                     landing_lat,
                     landing_lon,
@@ -725,9 +817,14 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
                     time=launch_datetime))
             del model_data
             launch_datetime += datetime.timedelta(hours=1)
+        hourly_track = gpxpy.gpx.GPXTrack(name='Landing points')
         hourly_track.segments.append(hourly_segment)
         gpx.tracks.append(hourly_track)
-        writeGpx(gpx, output_file)
+        for ind in range(forecast_length):
+            gpx.tracks.append(individual_tracks[ind])
+        writeGpx(gpx, output_file, upload=upload)
+        if webpage:
+            createWebpage(individual_tracks, individual_waypoints, webpage, hourly=gpx.waypoints, upload=upload)
 
     else: # Normal trajectory computation.
         # Download and read in model data.
@@ -756,11 +853,11 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
     
         # Write out track.
         if kml_output:
-            writeKml(track, output_file, waypoints=waypoints, networklink=kml_output if isinstance(kml_output,str) else None)
+            writeKml(track, output_file, waypoints=waypoints, networklink=kml_output if isinstance(kml_output,str) else None, upload=upload)
         else:
-            writeGpx(track, output_file, waypoints=waypoints, description=track.description)
+            writeGpx(track, output_file, waypoints=waypoints, description=track.description, upload=upload)
         if webpage:
-            createWebpage(track, waypoints, webpage)
+            createWebpage(track, waypoints, webpage, upload=upload)
 
     return
 
@@ -775,6 +872,7 @@ if __name__ == "__main__":
     parser.add_argument('-l', '--live', required=False, nargs='?', default=None, const='comm.ini', help='Do a live prediction')
     parser.add_argument('-k', '--kml', required=False, nargs='?', default=None, const=True, help='Create output in KML format, optionally with network link')
     parser.add_argument('-w', '--webpage', required=False, default=None, help='Create interactive web page with track and export to file')
+    parser.add_argument('-u', '--upload', required=False, default=None, help='Upload results to web server')
     parser.add_argument('-o', '--output', required=False, default=None, help='Output file name')
     args = parser.parse_args()
     launch_datetime = datetime.datetime.fromisoformat(args.launchtime)
@@ -782,4 +880,4 @@ if __name__ == "__main__":
         launch_pos = np.array(args.position.split(',')).astype(float)
     else:
         launch_pos = None
-    main(launch_datetime, config_file=args.ini, launch_pos=launch_pos, descent_only=args.descent_only, hourly=args.timely, live=args.live, output_file=args.output, kml_output=args.kml, webpage=args.webpage)
+    main(launch_datetime, config_file=args.ini, launch_pos=launch_pos, descent_only=args.descent_only, hourly=args.timely, live=args.live, output_file=args.output, kml_output=args.kml, webpage=args.webpage, upload=args.upload)
