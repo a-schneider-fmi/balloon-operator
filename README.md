@@ -20,8 +20,20 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 * [gpxpy](https://github.com/tkrajina/gpxpy)
 * [srtm-python](https://github.com/aatishnn/srtm-python)
 * [simplekml](https://github.com/eisoldt/simplekml)
-* [paramiko](https://github.com/paramiko/paramiko)
-* [Folium](https://github.com/python-visualization/folium)
+* [paramiko](https://github.com/paramiko/paramiko) for uploading data with scp/sftp
+* [folium](https://github.com/python-visualization/folium) for creating web pages
+Usually, these can be installed with pip:
+```
+pip install packagename
+```
+On Linux, however, it is advisable to install through the system's packaging
+system. For example on Debian-based distributions:
+```
+sudo apt install python3-numpy python3-scipy python3-requests python3-grib python3-magic python3-gpxpy
+```
+Some Python packages are not available through the Linux packaging system.
+These can either be installed with pip or by cloning the repositories and setting
+the PYTHONPATH.
 
 
 ## Data
