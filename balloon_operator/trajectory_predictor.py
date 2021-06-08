@@ -779,7 +779,8 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
         hourly_segment = gpxpy.gpx.GPXTrackSegment()
         individual_tracks = []
         individual_waypoints = []
-        launch_datetime = utils.roundHours(datetime.datetime.utcnow(), 1) # Round current time up to next full hour.
+        if launch_datetime is None:
+            launch_datetime = utils.roundHours(datetime.datetime.utcnow(), 1) # Round current time up to next full hour.
         for i_hour in range(forecast_length):
             filelist = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
             if filelist is None:
