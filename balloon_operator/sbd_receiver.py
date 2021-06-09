@@ -19,6 +19,7 @@ import email
 import os.path
 import sys
 import argparse
+import logging
 from balloon_operator import trajectory_predictor
 
 
@@ -386,7 +387,7 @@ def queryMail(imap, from_address='@rockblock.rock7.com', unseen_only=True):
                 if fileext in ['.sbd', '.bin']:
                     sbd_list.append(part.get_payload(decode=True))
                 else:
-                    print('queryMail: unrecognized file extension {} of attachment.'.format(fileext))
+                    logging.warning('queryMail: unrecognized file extension {} of attachment.'.format(fileext))
     return sbd_list
 
 
@@ -406,7 +407,7 @@ def getMessages(imap, from_address='@rockblock.rock7.com', all_messges=False):
         try:
             messages.append(parseSbd(sbd))
         except (ValueError, AssertionError) as err:
-            print('Error parsing message: {}'.format(err))
+            logging.error('Error parsing message: {}'.format(err))
             pass
     return messages
 

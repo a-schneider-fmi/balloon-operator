@@ -12,6 +12,7 @@ import os.path
 import pathlib
 import geog
 import magic
+import logging
 
 
 def getModelArea(launch_lon, launch_lat, resolution=0.25, radius = 800.):
@@ -108,10 +109,10 @@ def downloadGfs(lon_range, lat_range, model_datetime, forecast_time, dest_dir, m
     filename = os.path.join(dest_dir,modelFilename('gfs', lon_range, lat_range, model_datetime, forecast_time, model_resolution))
 
     if os.path.isfile(filename): 
-        print('File {} already downloaded.'.format(filename))
+        logging.info('File {} already downloaded.'.format(filename))
         return filename
     else:
-        print('Trying to download {} ...'.format(filename))
+        logging.info('Trying to download {} ...'.format(filename))
         count = 0
         result = None
         while result is None and count < 3:
@@ -119,7 +120,7 @@ def downloadGfs(lon_range, lat_range, model_datetime, forecast_time, dest_dir, m
                 response = requests.get(url)
                 result = response.text
             except Exception as err:
-                print('Error downloading GFS data: {}'.format(err))
+                logging.error('Error downloading GFS data: {}'.format(err))
                 result = None
             count += 1
         if result is None:
@@ -133,8 +134,8 @@ def downloadGfs(lon_range, lat_range, model_datetime, forecast_time, dest_dir, m
                     with open(filename, 'wb') as fd:
                         fd.write(response.content)
                 except Exception as err:
-                    print('Error writing local file: {}'.format(err))
-                print('Downloaded {}.'.format(filename))
+                    logging.error('Error writing local file: {}'.format(err))
+                logging.info('Downloaded {}.'.format(filename))
                 return filename
             elif file_type.startswith('HTML document'): # Error web page
                 return None

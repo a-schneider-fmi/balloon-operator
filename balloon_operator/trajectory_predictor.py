@@ -20,6 +20,7 @@ import geog
 import configparser
 import os.path
 import argparse
+import logging
 from balloon_operator import filling, parachute, download_model_data, constants, sbd_receiver, comm, utils
 
 
@@ -88,7 +89,7 @@ def readGfsDataFile(filename):
         elif grb.name == 'Orography':
             surface_altitude = grb.values.transpose()
         else:
-            print('Unused variable: {}'.format(grb.name))
+            logging.warning('Unused variable: {}'.format(grb.name))
     grbidx.close()
     # Convert winds from m/s to deg/s
     for ind_level in range(len(levels)):
@@ -195,10 +196,10 @@ def predictTrajectory(dt, altitude, model_data, lon_start, lat_start):
             grid_time = (dt[ind]-model_data['datetime'][0]).total_seconds()
             if grid_time > time_grid[-1]:
                 grid_time = time_grid[-1] # Cap time outside grid
-                print('Capping time outside grid: {} > {}'.format(dt[ind], model_data['datetime'][-1]))
+                logging.warning('Capping time outside grid: {} > {}'.format(dt[ind], model_data['datetime'][-1]))
             if grid_time < time_grid[0]:
                 grid_time = time_grid[0] # Cap time outside grid
-                print('Capping time outside grid: {} < {}'.format(dt[ind], model_data['datetime'][0]))
+                logging.warning('Capping time outside grid: {} < {}'.format(dt[ind], model_data['datetime'][0]))
             u = interp_u([grid_time, pressure[ind], lon, lat])[0]
             v = interp_v([grid_time, pressure[ind], lon, lat])[0]
             lon += delta_t * u
@@ -411,7 +412,7 @@ def liveForecast(
     model_data = readGfsDataFiles(filelist)
 
     # Do live prediction.
-    print('Starting live forecast. Waiting for messages ...')
+    logging.info('Starting live forecast. Waiting for messages ...')
     segment_tracked = gpxpy.gpx.GPXTrackSegment()
     is_ascending = True
     cur_lon = launch_lon
@@ -420,7 +421,7 @@ def liveForecast(
     while True:
         messages = sbd_receiver.getMessages(imap, from_address=from_address, all_messges=False)
         if len(messages) > 0:
-            print('Received {} message(s).'.format(len(messages)))
+            logging.info('Received {} message(s).'.format(len(messages)))
             for msg in messages:
                 segment_tracked.points.append(sbd_receiver.message2trackpoint(msg))
             if len(segment_tracked.points) >= 3 and is_ascending:
@@ -432,13 +433,13 @@ def liveForecast(
                     top_lon = segment_tracked.points[ind_top].longitude
                     top_lat = segment_tracked.points[ind_top].latitude
                     top_datetime = segment_tracked.points[ind_top].time
-                    print('Descent detected. Top altitude was at {:.0f} m.'.format(top_height))
+                    logging.info('Descent detected. Top altitude was at {:.0f} m.'.format(top_height))
             cur_lon = segment_tracked.points[-1].longitude
             cur_lat = segment_tracked.points[-1].latitude
             cur_alt = segment_tracked.points[-1].elevation
             cur_datetime = segment_tracked.points[-1].time
             if cur_alt > top_height:
-                print('Balloon above top altitude. Assuming descent is imminent.')
+                logging.info('Balloon above top altitude. Assuming descent is imminent.')
                 is_ascending = False
                 top_lon = cur_lon
                 top_lat = cur_lat
@@ -511,9 +512,9 @@ def writeGpx(track, output_file, waypoints=None, name=None, description=None, up
         try:
             comm.uploadFile(upload, os.path.basename(output_file), gpx.to_xml())
         except Exception as err:
-            print('Error uploading file to {}: {}'.format(upload['host'], err))
+            logging.error('Error uploading file to {}: {}'.format(upload['host'], err))
     with open(output_file, 'w') as fd:
-        print('Writing {}'.format(output_file))
+        logging.info('Writing {}'.format(output_file))
         fd.write(gpx.to_xml())
     return
 
@@ -556,8 +557,8 @@ def writeKml(track, output_file, waypoints=None, name=None, networklink=None, re
         try:
             comm.uploadFile(upload, os.path.basename(output_file), kml.kml())
         except Exception as err:
-            print('Error uploading file to {}: {}'.format(upload['host'], err))
-    print('Writing {}'.format(output_file))
+            logging.error('Error uploading file to {}: {}'.format(upload['host'], err))
+    logging.info('Writing {}'.format(output_file))
     kml.save(output_file)
     return
 
@@ -658,10 +659,10 @@ def createWebpage(track, waypoints, output_file, upload=None, hourly=None):
         try:
             comm.uploadFile(upload, os.path.basename(output_file), mymap.get_root().render())
         except Exception as err:
-            print('Error uploading file to {}: {}'.format(upload['host'], err))
+            logging.error('Error uploading file to {}: {}'.format(upload['host'], err))
     else:
         mymap.save(output_file)
-        print('Created {}.'.format(output_file))
+        logging.info('Created {}.'.format(output_file))
     return
 
 
@@ -753,7 +754,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
             if cut_altitude < ascent_burst_height:
                 top_height = cut_altitude
             else:
-                print('Warning: cut altitude larger than burst height, {:.1f}m > {:.1f}m.'.format(cut_altitude, ascent_burst_height))
+                logging.warning('Warning: cut altitude larger than burst height, {:.1f}m > {:.1f}m.'.format(cut_altitude, ascent_burst_height))
         descent_launch_radius = None
         descent_neutral_lift = None
         descent_burst_height = None
@@ -785,7 +786,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
             filelist = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
             if filelist is None:
                 break
-            print('Forecast for launch at {} ...'.format(launch_datetime))
+            logging.info('Forecast for launch at {} ...'.format(launch_datetime))
             model_data = readGfsDataFiles(filelist)
             flight_track, flight_waypoints, flight_range = predictBalloonFlight(
                 launch_datetime, launch_lon, launch_lat, launch_altitude,
@@ -831,7 +832,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
         # Download and read in model data.
         model_filenames = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
         if model_filenames is None:
-            print('Error retrieving model data.')
+            logging.error('Error retrieving model data.')
             return
         model_data = readGfsDataFiles(model_filenames)
     
