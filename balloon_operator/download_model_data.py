@@ -11,7 +11,6 @@ import datetime
 import os.path
 import pathlib
 import geog
-import magic
 import logging
 
 
@@ -126,8 +125,9 @@ def downloadGfs(lon_range, lat_range, model_datetime, forecast_time, dest_dir, m
         if result is None:
             return None
         else:
-            file_type = magic.from_buffer(result)
-            if file_type == 'Gridded binary (GRIB) version 2':
+            if result.startswith('<!DOCTYPE html PUBLIC'): # Error web page
+                return None
+            else:
                 if not os.path.isdir(dest_dir):
                     pathlib.Path(dest_dir).mkdir(parents=True, exist_ok=True)
                 try:
@@ -137,10 +137,6 @@ def downloadGfs(lon_range, lat_range, model_datetime, forecast_time, dest_dir, m
                     logging.error('Error writing local file: {}'.format(err))
                 logging.info('Downloaded {}.'.format(filename))
                 return filename
-            elif file_type.startswith('HTML document'): # Error web page
-                return None
-            else:
-                return None
 
 
 def getGfsData(launch_lon, launch_lat, launch_datetime, dest_dir, model_resolution=0.25, timesteps=4):

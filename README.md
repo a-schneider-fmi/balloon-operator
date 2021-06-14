@@ -15,17 +15,35 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 * [scipy](http://www.scipy.org)
 * [requests](http://python-requests.org)
 * [pygrib](https://github.com/jswhit/pygrib)
-* [magic](https://github.com/ahupp/python-magic)
 * [geog](https://github.com/jwass/geog)
 * [gpxpy](https://github.com/tkrajina/gpxpy)
 * [srtm-python](https://github.com/aatishnn/srtm-python)
 * [simplekml](https://github.com/eisoldt/simplekml)
 * [paramiko](https://github.com/paramiko/paramiko) for uploading data with scp/sftp
 * [folium](https://github.com/python-visualization/folium) for creating web pages
-Usually, these can be installed with pip:
+Usually, these can be installed with `pip`:
 ```
-pip install packagename
+pip install numpy scipy requests pygrib python-magic geog gpxpy simplekml
 ```
+and if needed
+```
+pip install folium
+pip install paramiko
+```
+With Anaconda, packages are installed with `conda`:
+```
+conda update --all
+conda install numpy scipy requests gpxpy simplekml
+conda install -c conda-forge pygrib
+pip install python-magic python-magic-bin geog
+```
+and if needed
+```
+conda install folium
+conda install paramiko
+```
+The package `srtm-python` is not available in pypi and has to be cloned from github.
+
 On Linux, however, it is advisable to install through the system's packaging
 system. For example on Debian-based distributions:
 ```
