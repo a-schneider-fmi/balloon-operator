@@ -31,7 +31,7 @@ def test_parseSbd(verbose=False):
     """
     test_message = b'\x02\ti\x01\n\xcf\x03\x0b\x1d\x05\x14\xe5\x07\x05\x07\n\x17\x19\x15"T\'(\x16\x9eG\xdf\x0f\x17\x12\xe1\x02\x00\x03\x96n'
     message_translation = {
-            'BATTV': 3.61, 'PRESS': 975, 'TEMP': 1309, 
+            'BATTV': 3.61, 'PRESS': 975, 'TEMP': 13.09, 
             'DATETIME': datetime.datetime(2021, 5, 7, 10, 23, 25),
             'LAT': 67.3666082, 'LON': 26.6291102, 'ALT': 188.69}
     data = sbd_receiver.parseSbd(test_message)
@@ -44,7 +44,7 @@ def test_encodeSdb(verbose=False):
     Unit test for encodeSbd
     """
     test_data = {
-            'BATTV': 3.61, 'PRESS': 975, 'TEMP': 1309, 
+            'BATTV': 3.61, 'PRESS': 975, 'TEMP': 13.09, 
             'DATETIME': datetime.datetime(2021, 5, 7, 10, 23, 25),
             'LAT': 67.3666082, 'LON': 26.6291102, 'ALT': 188.69}
     message = sbd_receiver.encodeSdb(test_data)

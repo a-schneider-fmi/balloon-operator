@@ -183,6 +183,7 @@ Conversion factors for data fields according to documentation.
 """
 CONVERSION_FACTOR = {
         TrackerMessageFields.BATTV: 1e-2,
+        TrackerMessageFields.TEMP: 1e-2,
         TrackerMessageFields.HUMID: 1e-2,
         TrackerMessageFields.LAT: 1e-7,
         TrackerMessageFields.LON: 1e-7,
@@ -254,6 +255,7 @@ def parseSbd(message):
             field_len = FIELD_TYPE[field]
             if field == TrackerMessageFields.DATETIME:
                 values = struct.unpack('HBBBBB', message[ind:ind+field_len])
+                logging.debug('  DATETIME: {}'.format(values))
                 data[field.name] = datetime.datetime(*values)
             elif field_len > 0:
                 data[field.name] = message[ind:ind+field_len]
