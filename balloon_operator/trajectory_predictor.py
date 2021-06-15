@@ -54,6 +54,8 @@ def readGfsDataFile(filename):
     grbidx = pygrib.open(filename)
     # Get levels in GRIB file. Assume all variables have same order of levels.
     levels = []
+    lat = None
+    lon = None
     for grb in grbidx:
         if grb.name == 'U component of wind':
             levels.append(grb.level)
@@ -61,6 +63,9 @@ def readGfsDataFile(filename):
             lat = lat[:,0]
             lon = lon[0,:]
             dt = grb.validDate
+    if lat is None or lon is None:
+        logging.error('Error: No valid U entries in grib file {}!'.format(filename))
+        return None
     # Read in data.
     u_wind = np.zeros((len(levels), len(lon), len(lat)))
     v_wind = np.zeros((len(levels), len(lon), len(lat)))
@@ -111,8 +116,12 @@ def readGfsDataFiles(filelist):
         Variables (but not lon, lat, press) have one dimension more than from readGfsDataFile.
     """
     data = None
+    idx_keep = np.ones(len(filelist), dtype=bool)
     for ind_file in range(len(filelist)):
         this_data = readGfsDataFile(filelist[ind_file])
+        if this_data is None:
+            idx_keep[ind_file] = False
+            continue
         if data is None:
             data = {'datetime': np.array([None]*len(filelist)),
                     'press': this_data['press'],
@@ -133,6 +142,12 @@ def readGfsDataFiles(filelist):
         data['u_wind_deg'][ind_file,:,:,:] = this_data['u_wind_deg']
         data['v_wind_deg'][ind_file,:,:,:] = this_data['v_wind_deg']
         del this_data
+    if not idx_keep.all():
+        logging.warning('{} GRIB files damaged! Not using them.'.format(np.count_nonzero(idx_keep)))
+        for qty in ['surface_pressure', 'surface_altitude']:
+            data[qty] = data[qty][idx_keep,:,:]
+        for qty in ['altitude', 'u_wind_deg', 'v_wind_deg']:
+            data[qty] = data[qty][idx_keep,:,:,:]
     return data
 
 
@@ -200,8 +215,12 @@ def predictTrajectory(dt, altitude, model_data, lon_start, lat_start):
             if grid_time < time_grid[0]:
                 grid_time = time_grid[0] # Cap time outside grid
                 logging.warning('Capping time outside grid: {} < {}'.format(dt[ind], model_data['datetime'][0]))
-            u = interp_u([grid_time, pressure[ind], lon, lat])[0]
-            v = interp_v([grid_time, pressure[ind], lon, lat])[0]
+            try:
+                u = interp_u([grid_time, pressure[ind], lon, lat])[0]
+                v = interp_v([grid_time, pressure[ind], lon, lat])[0]
+            except ValueError as err:
+                logging.error('Error interpolating winds: {}'.format(err))
+                continue
             lon += delta_t * u
             lat += delta_t * v
             surface_elevation = srtm.get_elevation(lat, lon)
@@ -346,7 +365,7 @@ def predictBalloonFlight(
 
 
 def liveForecast(
-        launch_lon, launch_lat, launch_altitude,
+        launch_datetime, launch_lon, launch_lat, launch_altitude,
         payload_weight, payload_area, ascent_velocity, top_height,
         parachute_parameters,
         timestep, model_path, output_file,
@@ -408,7 +427,9 @@ def liveForecast(
             output_dir = config['output'].get('directory')
 
     # Read model data.
-    filelist = download_model_data.getGfsData(launch_lon, launch_lat, datetime.datetime.utcnow(), model_path)
+    if launch_datetime is None:
+        launch_datetime = datetime.datetime.utcnow()
+    filelist = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path, timesteps=7)
     model_data = readGfsDataFiles(filelist)
 
     # Do live prediction.
@@ -419,64 +440,77 @@ def liveForecast(
     cur_lat = launch_lat
     cur_alt = launch_altitude
     while True:
-        messages = sbd_receiver.getMessages(imap, from_address=from_address, all_messges=False)
-        if len(messages) > 0:
-            logging.info('Received {} message(s).'.format(len(messages)))
-            for msg in messages:
-                segment_tracked.points.append(sbd_receiver.message2trackpoint(msg))
-            if len(segment_tracked.points) >= 3 and is_ascending:
-                vertical_velocites = np.diff([pkt.elevation for pkt in segment_tracked.points[-3:]])
-                if (vertical_velocites < 0).all():
+        try:
+            messages = sbd_receiver.getMessages(imap, from_address=from_address, all_messges=False)
+            if len(messages) > 0:
+                logging.info('Received {} message(s).'.format(len(messages)))
+                logging.info('Last: {}'.format(messages[-1]))
+                for msg in messages:
+                    segment_tracked.points.append(sbd_receiver.message2trackpoint(msg))
+                if len(segment_tracked.points) >= 3 and is_ascending:
+                    last_heights = np.array([pkt.elevation for pkt in segment_tracked.points[-3:]])
+                    vertical_velocites = np.diff(last_heights)
+                    if (vertical_velocites < 0).all() and (last_heights > launch_altitude + 100.).all():
+                        is_ascending = False
+                        ind_top = np.argmax([pkt.elevation for pkt in segment_tracked.points])
+                        top_height = segment_tracked.points[ind_top].elevation
+                        top_lon = segment_tracked.points[ind_top].longitude
+                        top_lat = segment_tracked.points[ind_top].latitude
+                        top_datetime = segment_tracked.points[ind_top].time
+                        logging.info('Descent detected. Top altitude was at {:.0f} m.'.format(top_height))
+                cur_lon = segment_tracked.points[-1].longitude
+                cur_lat = segment_tracked.points[-1].latitude
+                cur_alt = segment_tracked.points[-1].elevation
+                cur_datetime = segment_tracked.points[-1].time
+                if cur_alt > top_height:
+                    logging.info('Balloon above top altitude. Assuming descent is imminent.')
                     is_ascending = False
-                    ind_top = np.argmax([pkt.elevation for pkt in segment_tracked.points])
-                    top_height = segment_tracked.points[ind_top].elevation
-                    top_lon = segment_tracked.points[ind_top].longitude
-                    top_lat = segment_tracked.points[ind_top].latitude
-                    top_datetime = segment_tracked.points[ind_top].time
-                    logging.info('Descent detected. Top altitude was at {:.0f} m.'.format(top_height))
-            cur_lon = segment_tracked.points[-1].longitude
-            cur_lat = segment_tracked.points[-1].latitude
-            cur_alt = segment_tracked.points[-1].elevation
-            cur_datetime = segment_tracked.points[-1].time
-            if cur_alt > top_height:
-                logging.info('Balloon above top altitude. Assuming descent is imminent.')
-                is_ascending = False
-                top_lon = cur_lon
-                top_lat = cur_lat
-                top_height = cur_alt
-                top_datetime = cur_datetime
-            waypoints = [gpxpy.gpx.GPXWaypoint(
-                    segment_tracked.points[0].latitude,
-                    segment_tracked.points[0].longitude,
-                    elevation=segment_tracked.points[0].elevation,
-                    time=segment_tracked.points[0].time,
-                    name='Launch')]
-            waypoints.append(gpxpy.gpx.GPXWaypoint(
-                    cur_lat, cur_lon, elevation=cur_alt, time=cur_datetime, name='Current'))
-            track = gpxpy.gpx.GPXTrack()
-            track.segments.append(segment_tracked)
-            if is_ascending:
-                segment_ascent, cur_lon, cur_lat, cur_datetime = predictAscent(cur_datetime, cur_lon, cur_lat, cur_alt, top_height, ascent_velocity, model_data, timestep)
-                track.segments.append(segment_ascent)
+                    top_lon = cur_lon
+                    top_lat = cur_lat
+                    top_height = cur_alt
+                    top_datetime = cur_datetime
+                waypoints = [gpxpy.gpx.GPXWaypoint(
+                        segment_tracked.points[0].latitude,
+                        segment_tracked.points[0].longitude,
+                        elevation=segment_tracked.points[0].elevation,
+                        time=segment_tracked.points[0].time,
+                        name='Launch')]
+                status_text = ''
+                if 'PRESS' in msg:
+                    status_text += 'Pressure: {} hPa\n'.format(msg['PRESS'])
+                if 'TEMP' in msg:
+                    status_text += 'Temperature: {:.1f} °C\n'.format(msg['TEMP'])
+                if 'BATTV' in msg:
+                    status_text += 'Battery: {:.2f} V\n'.format(msg['BATTV'])
                 waypoints.append(gpxpy.gpx.GPXWaypoint(
-                        cur_lat, cur_lon, elevation=top_height, time=cur_datetime, name='Ceiling'))
-            else:
+                        cur_lat, cur_lon, elevation=cur_alt, time=cur_datetime, name='Current',
+                        description=status_text))
+                track = gpxpy.gpx.GPXTrack()
+                track.segments.append(segment_tracked)
+                if is_ascending:
+                    segment_ascent, cur_lon, cur_lat, cur_datetime = predictAscent(cur_datetime, cur_lon, cur_lat, cur_alt, top_height, ascent_velocity, model_data, timestep)
+                    track.segments.append(segment_ascent)
+                    waypoints.append(gpxpy.gpx.GPXWaypoint(
+                            cur_lat, cur_lon, elevation=top_height, time=cur_datetime, name='Ceiling'))
+                else:
+                    waypoints.append(gpxpy.gpx.GPXWaypoint(
+                            top_lat, top_lon, elevation=top_height, time=top_datetime, name='Ceiling'))
+                segment_descent, landing_lon, landing_lat = predictDescent(
+                        cur_datetime, cur_lon, cur_lat, top_height if is_ascending else cur_alt, descent_velocity, 
+                        parachute_parameters, payload_weight, payload_area, model_data, timestep)
+                track.segments.append(segment_descent)
                 waypoints.append(gpxpy.gpx.GPXWaypoint(
-                        top_lat, top_lon, elevation=top_height, time=top_datetime, name='Ceiling'))
-            segment_descent, landing_lon, landing_lat = predictDescent(
-                    cur_datetime, cur_lon, cur_lat, top_height, descent_velocity, 
-                    parachute_parameters, payload_weight, payload_area, model_data, timestep)
-            track.segments.append(segment_descent)
-            waypoints.append(gpxpy.gpx.GPXWaypoint(
-                    landing_lat, landing_lon,
-                    elevation=segment_descent.points[-1].elevation,
-                    time=segment_descent.points[-1].time, name='Landing'))
-            if kml_output:
-                writeKml(track, os.path.join(output_dir, output_file), waypoints=waypoints, networklink=networklink, refreshinterval=refreshinterval, upload=upload)
-            else:
-                writeGpx(track, os.path.join(output_dir, output_file), waypoints=waypoints, upload=upload)
-            if webpage:
-                createWebpage(track, waypoints, webpage, upload=upload)
+                        landing_lat, landing_lon,
+                        elevation=segment_descent.points[-1].elevation,
+                        time=segment_descent.points[-1].time, name='Landing'))
+                if kml_output:
+                    writeKml(track, os.path.join(output_dir, output_file), waypoints=waypoints, networklink=networklink, refreshinterval=refreshinterval, upload=upload)
+                else:
+                    writeGpx(track, os.path.join(output_dir, output_file), waypoints=waypoints, upload=upload)
+                if webpage:
+                    createWebpage(track, waypoints, webpage, upload=upload)
+        except Exception as err:
+            logging.critical('Exception occurred: {}'.format(err))
         time.sleep(poll_time)
             
     sbd_receiver.disconnectImap(imap)
@@ -588,11 +622,23 @@ def gpxWaypointToFolium(waypoint):
     @return marker folium.Marker object corresponding to waypoint
     """
     import folium
+    if waypoint.name.lower()=='launch':
+        icon = folium.Icon(color='green', icon='play')
+    elif waypoint.name.lower() in ['burst','ceiling']:
+        icon = folium.Icon(color='blue', icon='certificate')
+    elif waypoint.name.lower()=='landing':
+        icon = folium.Icon(color='orange', icon='stop')
+    elif waypoint.name.lower()=='current':
+        icon = folium.Icon(color='red', icon='record')
+    else:
+        icon = None
     return folium.Marker(
             (waypoint.latitude, waypoint.longitude), tooltip=waypoint.name,
-            popup='<b>{}</b><br>{}Lon: {:.6f}°<br>Lat: {:.6f}°<br>Alt: {:.0f}m'.format(
+            popup='<b>{}</b><br>{}Lon: {:.6f}°<br>Lat: {:.6f}°<br>Alt: {:.0f} m{}'.format(
                     waypoint.name, '{}<br>'.format(waypoint.time) if waypoint.time else '',
-                    waypoint.longitude, waypoint.latitude, waypoint.elevation))
+                    waypoint.longitude, waypoint.latitude, waypoint.elevation,
+                    '<br>{}'.format(waypoint.description.replace('\n','<br>')) if waypoint.description else ''),
+            icon=icon)
 
 
 def createWebpage(track, waypoints, output_file, upload=None, hourly=None):
@@ -720,9 +766,9 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
 
     if output_file is None:
         if hourly:
-            output_file = '/tmp/hourly_prediction'
+            output_file = 'hourly_prediction'
         else:
-            output_file = '/tmp/trajectory'
+            output_file = 'trajectory'
         if kml_output:
             output_file += '.kml'
         else:
@@ -762,7 +808,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
     # Predict trajectory.
     if live: # Live forecast.
         liveForecast(
-            launch_lon, launch_lat, launch_altitude,
+            launch_datetime, launch_lon, launch_lat, launch_altitude,
             payload_weight, payload_area, ascent_velocity, top_height,
             parachute_parameters,
             timestep, model_path, output_file,
@@ -876,10 +922,15 @@ if __name__ == "__main__":
     parser.add_argument('-w', '--webpage', required=False, default=None, help='Create interactive web page with track and export to file')
     parser.add_argument('-u', '--upload', required=False, default=None, help='Upload results to web server')
     parser.add_argument('-o', '--output', required=False, default=None, help='Output file name')
+    parser.add_argument('--log', required=False, default='INFO', help='Log level')
     args = parser.parse_args()
     launch_datetime = datetime.datetime.fromisoformat(args.launchtime)
     if args.position is not None:
         launch_pos = np.array(args.position.split(',')).astype(float)
     else:
         launch_pos = None
+    numeric_level = getattr(logging, args.log.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError('Invalid log level: {}'.format(args.log))
+    logging.basicConfig(level=numeric_level)
     main(launch_datetime, config_file=args.ini, launch_pos=launch_pos, descent_only=args.descent_only, hourly=args.timely, live=args.live, output_file=args.output, kml_output=args.kml, webpage=args.webpage, upload=args.upload)
