@@ -123,11 +123,8 @@ An example is included in `comm.ini`. The configuration contains:
     * `filename`: output file name for (GPX or KML) trajectory
     * `directory`: (local) directory to which to write the resulting files
 * options in section `geofence`: in order to filter erroneous position messages
-  during life forecast, a geofence can be lain.
-    * `ll_lon`: longitude of lower left corner of geofence (i.e. lower bound)
-    * `ur_lon`: longitude of upper right corner of geofence (i.e. upper bound)
-    * `ll_lat`: latitude of lower left corner of geofence (i.e. lower bound)
-    * `ur_lat`: latitude of upper right corner of geofence (i.e. upper bound)
+  during life forecast, a circular geofence can be lain around the launch position.
+    * `radius`: radius of the circle around the launch point in km
 
 
 ### Balloon parameter TSV file

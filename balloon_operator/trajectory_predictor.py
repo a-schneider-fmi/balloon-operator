@@ -414,10 +414,10 @@ def liveForecast(
         networklink = kml_output if isinstance(kml_output,str) else None
         refreshinterval = 60
         webpage = None
-    if config.has_section('geofence'):
-        geofence = config['geofence']
+    if config.has_section('geofence') and 'radius' in config['geofence']:
+        geofence_radius = config['geofence'].getfloat('radius')
     else:
-        geofence = None
+        geofence_radius = None
     output_dir = ''
     if config.has_section('output'):
         if 'format' in config['output']:
@@ -452,13 +452,15 @@ def liveForecast(
                 is_invalid = np.zeros(len(messages), dtype=bool)
                 for ind_msg in range(len(messages)):
                     msg = messages[ind_msg]
-                    if geofence and 'll_lon' in geofence and 'ur_lon' in geofence \
-                       and 'll_lat' in geofence and 'ur_lat' in geofence:
-                        if not (msg['LON'] >= geofence.getfloat('ll_lon') and msg['LON'] <= geofence.getfloat('ur_lon') \
-                                and msg['LAT'] >= geofence.getfloat('ll_lat') and msg['LAT'] <= geofence.getfloat('ur_lat')):
-                            logging.warning('Ignoring location outside geofence: {}° {}°'.format(msg['LON'], msg['LAT']))
+                    if geofence_radius:
+                        distance = geog.distance([launch_lon, launch_lat], [msg['LON'], msg['LAT']]) / 1000.
+                        if distance > geofence_radius:
+                            logging.warning('Ignoring location outside geofence: {:.6f}° {:.6f}° distance {:.4f} km'.format(
+                                    msg['LON'], msg['LAT'], distance))
                             is_invalid[ind_msg] = True
                             continue
+                        else:
+                            logging.debug('Distance to launch point: {:.4f} km'.format(distance))
                     segment_tracked.points.append(sbd_receiver.message2trackpoint(msg))
                 if all(is_invalid):
                     msg = None
