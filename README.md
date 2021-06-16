@@ -3,7 +3,7 @@
 Balloon operation software including trajectory prediction and flight control
 
 This software package is based on the BalloonTrajectory MATLAB software which
-has been developed by Jens Söder <soeder@iap-kborn.de> at the Institute of 
+has been developed by Jens Söder <soeder@iap-kborn.de> at the Institute of
 Atmospheric Physics in Kühlungsborn.
 
 
@@ -114,13 +114,21 @@ An example is included in `comm.ini`. The configuration contains:
     * `host`: hostname on which to upload results (or upload URL for post method)
     * `user`: username with which to login (FTP and SFTP)
     * `password`: password (FTP and SFTP) or access token (post)
-    * `directory`: directory to which to upload resulting files
+    * `directory`: (remote) directory to which to upload resulting files
     * `webpage`: file name for generated HTML file
     * `networklink`: URL for network link to include in KML file
     * `refreshinterval`: refresh interval for KML network link in seconds
 * options in section `output`:
     * `format`: format in which to create output files, `gpx` or `kml`
     * `filename`: output file name for (GPX or KML) trajectory
+    * `directory`: (local) directory to which to write the resulting files
+* options in section `geofence`: in order to filter erroneous position messages
+  during life forecast, a geofence can be lain.
+    * `ll_lon`: longitude of lower left corner of geofence (i.e. lower bound)
+    * `ur_lon`: longitude of upper right corner of geofence (i.e. upper bound)
+    * `ll_lat`: latitude of lower left corner of geofence (i.e. lower bound)
+    * `ur_lat`: latitude of upper right corner of geofence (i.e. upper bound)
+
 
 ### Balloon parameter TSV file
 
