@@ -9,38 +9,97 @@ Created on Mon May 24 13:52:19 2021
 
 import numpy as np
 import datetime
+import requests
+import configparser
 import argparse
 from balloon_operator import sbd_receiver
 
-def main(position, time=None, output_file=None):
+
+def sendMessage(imei, data, username, password):
     """
-    Main: Write binary SBD message corresponding to given data to file.
+    Send a mobile terminated (MT) message to a RockBLOCK device.
     """
-    data = {'LON': position[0],
+    resp = requests.post(
+            'https://core.rock7.com/rockblock/MT',
+            data={'imei': imei, 'data': sbd_receiver.bin2asc(data),
+                  'username': username, 'password': password})
+    if not resp.ok:
+        print('Error sending message: POST command failed: {}'.format(resp.text))
+    parts = resp.text.split(',')
+    if parts[0] == 'OK':
+        try:
+            print('Message {} sent.'.format(parts[1]))
+        except IndexError:
+            print('Unexpected server response format.')
+    elif parts[0] == 'FAILED':
+        try:
+            print('Sending message failed with error code {}: {}'.format(parts[1], parts[2]))
+        except IndexError:
+            print('Unexpected server response format.')
+    else:
+        print('Unexpected server response: {}'.format(resp.text))
+    return
+
+
+def main(position=None, time=None, userfunc=None, output_file=None, send=None):
+    """
+    Main: Encode binary SBD message corresponding to given data
+    and write it to file or send it to mobile IRIDIUM device.
+    """
+    data = {}
+    if position:
+        data.update({
+            'LON': position[0],
             'LAT': position[1],
-            'ALT': position[2],
-            'DATETIME': datetime.datetime.utcnow() if time is None else time}
+            'ALT': position[2]})
+    if time:
+        data.update({'DATETIME': time})
+    if userfunc:
+        data.update(userfunc)
     message = sbd_receiver.encodeSdb(data)
     if output_file:
         with open(output_file, 'wb') as fd:
             fd.write(message)
     else:
-        print(message)
+        print(sbd_receiver.bin2asc(message))
+    if send:
+        config = configparser.ConfigParser()
+        config.read(send)
+        sendMessage(
+                config['device']['imei'], message,
+                config['rockblock']['username'], config['rockblock']['password'])
     return
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--position', required=False, default=None, help='Position lon,lat,alt')
-    parser.add_argument('-t', '--time', required=False, default=None, help='Time in ISO format YYYY-mm-dd HH:MM:SS')
+    parser.add_argument('-t', '--time', required=False, nargs='?', default=None, const=datetime.datetime.utcnow, help='UTC time in ISO format YYYY-mm-dd HH:MM:SS, or now if no argument given')
+    parser.add_argument('-u', '--userfunc', required=False, default=None, help='User function (comma-separated list of functions to trigger)')
     parser.add_argument('-o', '--output', required=False, default=None, help='Output file')
+    parser.add_argument('-s', '--send', required=False, default=None, help='Send message to device as specified in configuration file')
     args = parser.parse_args()
     if args.position is not None:
         position = np.array(args.position.split(',')).astype(float)
     else:
         position = None
     if args.time is not None:
-        time = datetime.datetime.fromisoformat(args.time)
+        if isinstance(args.time, datetime.datetime):
+            time = args.time
+        else:
+            time = datetime.datetime.fromisoformat(args.time)
     else:
         time = None
-    main(position, time=time, output_file=args.output)
+    if args.userfunc is not None:
+        userfunc = {}
+        funcs = args.userfunc.split(',')
+        for func in funcs:
+            if ':' in func:
+                vals = func.split(':')
+                userfunc.update({'USERFUNC'+vals[0]: vals[1]})
+            else:
+                userfunc.update({'USERFUNC'+func: True})
+    else:
+        userfunc = None
+                
+    main(position=position, time=time, userfunc=userfunc, output_file=args.output, send=args.send)

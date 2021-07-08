@@ -52,6 +52,16 @@ def test_encodeSdb(verbose=False):
     assert(sbd_receiver.parseSbd(message) == test_data)
 
 
+def test_asc2bin(verbose=False):
+    """
+    Unit test for asc2bin
+    """
+    msg_asc = '020969010ACF030B1D0514E50705070A17191522542728169E47DF0F1712E1020003966E'
+    msg_bin = b'\x02\ti\x01\n\xcf\x03\x0b\x1d\x05\x14\xe5\x07\x05\x07\n\x17\x19\x15"T\'(\x16\x9eG\xdf\x0f\x17\x12\xe1\x02\x00\x03\x96n'
+    assert(sbd_receiver.asc2bin(msg_asc) == msg_bin)
+    assert(sbd_receiver.asc2bin(sbd_receiver.bin2asc(msg_bin)) == msg_bin)
+
+
 def test_message2trackpoint(verbose=False):
     """
     Unit test for message2trackpoint
@@ -71,4 +81,5 @@ if __name__ == "__main__":
     test_checksum(verbose=True)
     test_parseSbd(verbose=True)
     test_encodeSdb(verbose=True)
+    test_asc2bin(verbose=True)
     test_message2trackpoint(verbose=True)

@@ -309,11 +309,33 @@ def encodeSdb(data):
                     rawdata /= CONVERSION_FACTOR[field]
                 message += rawdata.astype(FIELD_TYPE[field]).tobytes()
                 del rawdata
+            elif isinstance(FIELD_TYPE[field], int): # number of bytes
+                message += np.zeros(FIELD_TYPE[field], dtype=np.uint8).tobytes()
     message += np.uint8(TrackerMessageFields.ETX.value)
     cs_a, cs_b = checksum(message)
     message += cs_a
     message += cs_b
     return message
+
+
+def asc2bin(msg_asc):
+    """
+    Convert ASCII representation of binary message to real binary message.
+    """
+    msg = b''
+    for ind in np.arange(0,len(msg_asc),2):
+        msg += np.uint8(int(msg_asc[ind:ind+2], 16))
+    return msg
+
+
+def bin2asc(msg_bin):
+    """
+    Encode binary message to ASCII representation.
+    """
+    msg_asc = ''
+    for ind in range(len(msg_bin)):
+        msg_asc += '{:02x}'.format(msg_bin[ind])
+    return msg_asc
 
 
 def message2trackpoint(msg):
@@ -439,5 +461,18 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--ini', required=False, default='comm.ini', help='Configuration ini file name')
     parser.add_argument('-a', '--all', required=False, action='store_true', default=False, help='Retrieve all messages, not only unread ones')
     parser.add_argument('-o', '--output', required=False, default=None, help='Output file')
+    parser.add_argument('-m', '--message', required=False, default=None, help='Translate binary message given as hex string')
     args = parser.parse_args()
-    main(args.ini, args.output, all_messges=args.all)
+    if args.message is not None:
+        if os.path.isfile(args.message):
+            with open(args.message,'rb') as fd:
+                msg_bin = fd.read()
+                try:
+                    msg_trans = parseSbd(msg_bin)
+                except (ValueError, AssertionError, IndexError) as err:
+                    print('Error translating message {}: {}'.format(args.message, err))
+                print(msg_trans)
+        else:
+            print(parseSbd(asc2bin(args.message)))
+    else:
+        main(args.ini, args.output, all_messges=args.all)

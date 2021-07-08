@@ -67,16 +67,19 @@ the PYTHONPATH.
 ### Trajectory predictor
 
 A command-line program to predict balloon trajectories.
+
 Arguments:
 * launch time in format YY-MM-DD HH:MM (space needs to be escaped from the shell)
-* `-i config_file` : Use configuration from `config_file` (default: `flight.ini`)
+* `-i config_file` : use configuration from `config_file` (default: `flight.ini`)
 * `-p lon,lat,alt` : overwrite launch position in format lon,lat,alt
 * `-d` : compute descent only
 * `-t [duration]` : compute hourly prediction for `duration` hours
 * `-l comm.ini` : do live forcast receiving current location as specified in comm.ini
 * `-k [networklink]`: output result in KML format instead of GPX, optionally adding a network link
-* `-w webpage_filename`: create an HTML + JavaScript web page and write it to given file
-* `-o output_filename`: write output in file `output_filename`
+* `-w webpage_filename` : create an HTML + JavaScript web page and write it to given file
+* `-u comm.ini` : upload results to web server
+* `-o output_filename` : write output in file `output_filename`
+* `--log` : set verbosity (CRITICAL, ERROR, WARNING, INFO, DEBUG), default INFO
 
 ### Flight configuration file
 
@@ -126,7 +129,6 @@ An example is included in `comm.ini`. The configuration contains:
   during life forecast, a circular geofence can be lain around the launch position.
     * `radius`: radius of the circle around the launch point in km
 
-
 ### Balloon parameter TSV file
 
 A file in tab separated value format with balloon parameters containing the
@@ -138,3 +140,21 @@ The first line is treated as header line.
 A file in tab separated value format with parachute parameters containing the
 three columns parachute name, diameter (in m), and drag coefficient.
 The first line is treated as header line.
+
+### SBD message generator and sender
+
+A command-line program to encode a binary SBD message and optionally send it to a mobile device.
+
+Arguments:
+* `-p lon,lat,alt`: include given position in message
+* `-t [YY-mm-ddTHH:MM:SS]`: include time in message (now if now string specified)
+* `-u n[,m]`: include userfunction n (and m) in message, where n and m are digits between 1 and 8
+* `-o filename`: output binary message to given file
+* `-s agt.ini` : send message to device specified in given ini file
+
+The ini file should have the following entries:
+* option in section `device`:
+    * `imei`: The unique IMEI of the RockBLOCK to send to
+* options in section `rockblock`:
+    * `username`: Rock 7 Core username
+    * `password`: Rock 7 Core password
