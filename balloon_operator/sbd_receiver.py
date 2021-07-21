@@ -259,6 +259,8 @@ def parseSbd(message):
                 data[field.name] = datetime.datetime(*values)
             elif field_len > 0:
                 data[field.name] = message[ind:ind+field_len]
+            else:
+                data[field.name] = None
         elif isinstance(FIELD_TYPE[field], np.dtype): # dtype of scalar
             field_len = FIELD_TYPE[field].itemsize
             data[field.name] = np.frombuffer(message[ind:ind+field_len], dtype=FIELD_TYPE[field])[0]
