@@ -757,7 +757,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
     else:
         ascent_balloon_weight = config['payload'].getint('balloon_weight')
     assert(ascent_balloon_weight is not None)
-    descent_balloon_weight = config['payload'].getint('ascent_balloon_weight', fallback=None)
+    descent_balloon_weight = config['payload'].getint('descent_balloon_weight', fallback=None)
     ascent_velocity = config['payload'].getfloat('ascent_velocity')
     assert(ascent_velocity is not None)
     descent_velocity = config['payload'].getfloat('descent_velocity', fallback=None)
