@@ -119,6 +119,8 @@ def readGfsDataFiles(filelist):
     data = None
     idx_keep = np.ones(len(filelist), dtype=bool)
     for ind_file in range(len(filelist)):
+        if filelist[ind_file] is None:
+            continue
         this_data = readGfsDataFile(filelist[ind_file])
         if this_data is None:
             idx_keep[ind_file] = False

@@ -1,0 +1,582 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWidget</class>
+ <widget class="QWidget" name="MainWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>371</width>
+    <height>969</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Balloon Operation Launcher</string>
+  </property>
+  <property name="windowIcon">
+   <iconset>
+    <normaloff>.</normaloff>.</iconset>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QGroupBox" name="group_launch_site">
+     <property name="title">
+      <string>Launch site</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_launch_altitude">
+        <property name="text">
+         <string>Altitude</string>
+        </property>
+        <property name="buddy">
+         <cstring>spin_launch_altitude</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QDoubleSpinBox" name="spin_launch_longitude">
+        <property name="decimals">
+         <number>6</number>
+        </property>
+        <property name="minimum">
+         <double>-180.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>180.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QLabel" name="label_launch_altitude_unit">
+        <property name="text">
+         <string>m</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_launch_longitude">
+        <property name="text">
+         <string>Longitude</string>
+        </property>
+        <property name="buddy">
+         <cstring>spin_launch_longitude</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QDoubleSpinBox" name="spin_launch_latitude">
+        <property name="decimals">
+         <number>6</number>
+        </property>
+        <property name="minimum">
+         <double>-180.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>180.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QDoubleSpinBox" name="spin_launch_altitude">
+        <property name="decimals">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <double>8000.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLabel" name="label_launch_latitude_unit">
+        <property name="text">
+         <string>°</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_launch_latitude">
+        <property name="text">
+         <string>Latitude</string>
+        </property>
+        <property name="buddy">
+         <cstring>spin_launch_latitude</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QLabel" name="label_launch_longitude_unit">
+        <property name="text">
+         <string>°</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="label_launch_datetime">
+        <property name="text">
+         <string>Time</string>
+        </property>
+        <property name="buddy">
+         <cstring>dt_launch_datetime</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QDateTimeEdit" name="dt_launch_datetime"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="group_payload">
+     <property name="title">
+      <string>Payload</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_2">
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_payload_area">
+        <property name="text">
+         <string>Payload area</string>
+        </property>
+        <property name="buddy">
+         <cstring>spin_payload_area</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_asc_balloon">
+        <property name="text">
+         <string>Ascent balloon</string>
+        </property>
+        <property name="buddy">
+         <cstring>combo_asc_balloon</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="1">
+       <widget class="QDoubleSpinBox" name="spin_asc_velocity">
+        <property name="decimals">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <double>20.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="2">
+       <widget class="QLabel" name="label_cut_altitude_unit">
+        <property name="text">
+         <string>m</string>
+        </property>
+       </widget>
+      </item>
+      <item row="8" column="1">
+       <widget class="QDoubleSpinBox" name="spin_desc_velocity">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="decimals">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <double>20.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="label_parachute">
+        <property name="text">
+         <string>Parachute</string>
+        </property>
+        <property name="buddy">
+         <cstring>combo_parachute</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="0">
+       <widget class="QLabel" name="label_asc_velocity">
+        <property name="text">
+         <string>Ascent velocity</string>
+        </property>
+        <property name="buddy">
+         <cstring>spin_asc_velocity</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QLabel" name="label_payload_weight_unit">
+        <property name="text">
+         <string>kg</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="2">
+       <widget class="QLabel" name="label_desc_balloon_unit">
+        <property name="text">
+         <string>g</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QDoubleSpinBox" name="spin_payload_area">
+        <property name="decimals">
+         <number>3</number>
+        </property>
+        <property name="maximum">
+         <double>100.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.010000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QDoubleSpinBox" name="spin_payload_weight">
+        <property name="decimals">
+         <number>3</number>
+        </property>
+        <property name="maximum">
+         <double>50.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QLabel" name="label_asc_balloon_unit">
+        <property name="text">
+         <string>g</string>
+        </property>
+       </widget>
+      </item>
+      <item row="8" column="0">
+       <widget class="QLabel" name="label_desc_velocity">
+        <property name="text">
+         <string>Descent velocity</string>
+        </property>
+        <property name="buddy">
+         <cstring>spin_desc_velocity</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="2">
+       <widget class="QLabel" name="label_asc_velocity_unit">
+        <property name="text">
+         <string>m/s</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_payload_weight">
+        <property name="text">
+         <string>Payload weight</string>
+        </property>
+        <property name="buddy">
+         <cstring>spin_payload_weight</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="label_fill_gas">
+        <property name="text">
+         <string>Fill gas</string>
+        </property>
+        <property name="buddy">
+         <cstring>combo_fill_gas</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QComboBox" name="combo_desc_balloon">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="1">
+       <widget class="QDoubleSpinBox" name="spin_cut_altitude">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="decimals">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <double>50000.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLabel" name="label_payload_area_unit">
+        <property name="text">
+         <string>m2</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="combo_asc_balloon"/>
+      </item>
+      <item row="8" column="2">
+       <widget class="QLabel" name="label_desc_velocity_unit">
+        <property name="text">
+         <string>m/s</string>
+        </property>
+       </widget>
+      </item>
+      <item row="10" column="0" colspan="3">
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QPushButton" name="button_load_payload">
+          <property name="text">
+           <string>Load</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="button_save_payload">
+          <property name="text">
+           <string>Save</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="9" column="0">
+       <widget class="QCheckBox" name="check_cut">
+        <property name="text">
+         <string>Cut at</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1" colspan="2">
+       <widget class="QComboBox" name="combo_fill_gas"/>
+      </item>
+      <item row="5" column="1" colspan="2">
+       <widget class="QComboBox" name="combo_parachute"/>
+      </item>
+      <item row="3" column="0">
+       <widget class="QCheckBox" name="check_descent_balloon">
+        <property name="text">
+         <string>Descent balloon</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="group_filling">
+     <property name="title">
+      <string>Balloon performance</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout_2">
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_asc_fill_volume">
+        <property name="text">
+         <string>Fill volume</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLabel" name="label_asc_fill_volume_value">
+        <property name="text">
+         <string>?? m3</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_asc_lift">
+        <property name="text">
+         <string>Free lift</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLabel" name="label_asc_lift_value">
+        <property name="text">
+         <string>?? kg</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_asc_burst_height">
+        <property name="text">
+         <string>Burst height</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLabel" name="label_asc_burst_height_value">
+        <property name="text">
+         <string>?? m</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="label_desc_fill_volume">
+        <property name="text">
+         <string>Desccent fill volume</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QLabel" name="label_desc_fill_volume_value">
+        <property name="text">
+         <string>--</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="label_desc_lift">
+        <property name="text">
+         <string>Descent free lift</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QLabel" name="label_desc_lift_value">
+        <property name="text">
+         <string>--</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="label_desc_burst_height">
+        <property name="text">
+         <string>Descent burst height</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QLabel" name="label_desc_burst_height_value">
+        <property name="text">
+         <string>--</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="group_output_file">
+     <property name="title">
+      <string>Trajectory Output</string>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout_2">
+      <item>
+       <widget class="QLabel" name="label_output_file">
+        <property name="text">
+         <string>File</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="edit_output_file"/>
+      </item>
+      <item>
+       <widget class="QPushButton" name="button_output_file_dialog">
+        <property name="text">
+         <string>...</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="button_forecast">
+     <property name="text">
+      <string>Forecast</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="group_result">
+     <property name="title">
+      <string>Landing</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_landing_longitude">
+        <property name="text">
+         <string>Landing longitude</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_landing_latitude">
+        <property name="text">
+         <string>Landing latitude</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="label_range">
+        <property name="text">
+         <string>Range</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_landing_altitude">
+        <property name="text">
+         <string>Landing altitude</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLabel" name="label_landing_longitude_value">
+        <property name="text">
+         <string>??</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLabel" name="label_landing_latitude_value">
+        <property name="text">
+         <string>??</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLabel" name="label_landing_altitude_value">
+        <property name="text">
+         <string>??</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QLabel" name="label_range_value">
+        <property name="text">
+         <string>??</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <tabstops>
+  <tabstop>spin_launch_longitude</tabstop>
+  <tabstop>spin_launch_latitude</tabstop>
+  <tabstop>spin_launch_altitude</tabstop>
+  <tabstop>dt_launch_datetime</tabstop>
+  <tabstop>spin_payload_weight</tabstop>
+  <tabstop>spin_payload_area</tabstop>
+  <tabstop>combo_asc_balloon</tabstop>
+  <tabstop>check_descent_balloon</tabstop>
+  <tabstop>combo_desc_balloon</tabstop>
+  <tabstop>combo_fill_gas</tabstop>
+  <tabstop>combo_parachute</tabstop>
+  <tabstop>spin_asc_velocity</tabstop>
+  <tabstop>spin_desc_velocity</tabstop>
+  <tabstop>check_cut</tabstop>
+  <tabstop>spin_cut_altitude</tabstop>
+  <tabstop>button_load_payload</tabstop>
+  <tabstop>button_save_payload</tabstop>
+  <tabstop>edit_output_file</tabstop>
+  <tabstop>button_output_file_dialog</tabstop>
+  <tabstop>button_forecast</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
+</ui>

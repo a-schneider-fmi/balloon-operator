@@ -16,6 +16,7 @@ from balloon_operator import constants
 
 
 FillGas = Enum('FillGas', 'HYDROGEN HELIUM')
+fill_gas_names = {FillGas.HYDROGEN: 'hydrogen', FillGas.HELIUM: 'helium'}
 gas_density = {FillGas.HYDROGEN: 0.0899, FillGas.HELIUM: 0.1786} # gas density in kg/m^3 at STP (standard temperature and pressure, 0°C and 101kPa)
 
 def fillGas(name):
@@ -26,12 +27,10 @@ def fillGas(name):
 
     @return FillGas enum
     """
-    if name.lower() == 'hydrogen':
-        return FillGas.HYDROGEN
-    elif name.lower() == 'helium':
-        return FillGas.HELIUM
-    else:
-        raise ValueError('Unknown fill gas: {}'.format(name))
+    for fill_gas in FillGas:
+        if name.lower() == fill_gas_names[fill_gas]:
+            return fill_gas
+    raise ValueError('Unknown fill gas: {}'.format(name))
 
 
 def readBalloonParameterList(filename):

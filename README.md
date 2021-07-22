@@ -21,6 +21,7 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 * [simplekml](https://github.com/eisoldt/simplekml)
 * [paramiko](https://github.com/paramiko/paramiko) for uploading data with scp/sftp
 * [folium](https://github.com/python-visualization/folium) for creating web pages
+* [pyside6](https://doc.qt.io/qtforpython/) for the graphical user interface
 Usually, these can be installed with `pip`:
 ```
 pip install numpy scipy requests pygrib python-magic geog gpxpy simplekml
@@ -29,6 +30,7 @@ and if needed
 ```
 pip install folium
 pip install paramiko
+pip install pyside6
 ```
 With Anaconda, packages are installed with `conda`:
 ```
@@ -41,6 +43,7 @@ and if needed
 ```
 conda install folium
 conda install paramiko
+pip install pyside6
 ```
 The package `srtm-python` is not available in pypi and has to be cloned from github.
 
