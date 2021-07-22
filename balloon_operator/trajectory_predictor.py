@@ -21,6 +21,7 @@ import configparser
 import os.path
 import argparse
 import logging
+import tempfile
 from balloon_operator import filling, parachute, download_model_data, constants, sbd_receiver, comm, utils
 
 
@@ -770,7 +771,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
     else:
         descent_balloon_parameters = None
     parachute_parameter_list = parachute.readParachuteParameterList(config['parameters']['parachute'])
-    parachute_parameters = filling.lookupParameters(parachute_parameter_list, config['payload']['parachute_type'], key='name')
+    parachute_parameters = parachute.lookupParachuteParameters(parachute_parameter_list, config['payload']['parachute_type'])
     if launch_pos is None:
         launch_lon = config['launch_site'].getfloat('longitude')
         launch_lat = config['launch_site'].getfloat('latitude')
@@ -780,7 +781,10 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
         launch_lat = launch_pos[1]
         launch_altitude = launch_pos[2]
     timestep = config['parameters'].getint('timestep')
-    model_path = config['parameters']['model_path']
+    if 'model_path' in config['parameters']:
+        model_path = config['parameters']['model_path']
+    else:
+        model_path = tempfile.gettempdir()
 
     if output_file is None:
         if hourly:
@@ -791,6 +795,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
             output_file += '.kml'
         else:
             output_file += '.gpx'
+        output_file = os.path.join(tempfile.gettempdir(), output_file)
 
     if upload:
         cfg_upload = configparser.ConfigParser()
@@ -929,7 +934,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser('Balloon trajectory predictor')
     parser.add_argument('launchtime', help='Launch date and time (UTC) dd-mm-yyyy HH:MM:SS')
     parser.add_argument('-i', '--ini', required=False, default='flight.ini', help='Configuration ini file name (default: flight.ini)')
     parser.add_argument('-p', '--position', required=False, default=None, help='Start position lon,lat,alt')
