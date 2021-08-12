@@ -305,6 +305,7 @@ class MainWidget(QWidget):
     def doForecast(self, parameters, progress_callback=None, error_callback=None):
         """
         Compute a trajectory forecast.
+        Function is typically executed in a separate thread.
         """
         # Download and read in model data.
         model_filenames = download_model_data.getGfsData(
@@ -340,6 +341,24 @@ class MainWidget(QWidget):
                 'alt': track.segments[-1].points[-1].elevation,
                 'range': flight_range,
                 'top_alt': parameters['top_altitude']}
+
+    def doHourlyForecast(self, parameters, hours, progress_callback=None, error_callback=None):
+        """
+        Compute an hourly forecast.
+        Function is typically executed in a separate thread.
+        """
+        hourly_track, _, _ = trajectory_predictor.hourlyForecast(
+            parameters['launch_datetime'], parameters['launch_lon'],
+            parameters['launch_lat'], parameters['launch_alt'],
+            parameters['payload_weight'], parameters['payload_area'],
+            parameters['ascent_velocity'],
+            parameters['top_altitude'],
+            parameters['parachute_parameters'],
+            hours,
+            self.timestep, self.model_path, parameters['output_file'],
+            descent_velocity=parameters['descent_velocity'])
+        if hourly_track is None and callable(error_callback):
+            error_callback('Necessary data could not be downloaded.')
 
     @Slot()
     def onLoadPayload(self):
@@ -419,7 +438,17 @@ class MainWidget(QWidget):
         self.ui.button_forecast.setEnabled(False)
 
         # Execute calculation in a separate thread in order not to make the GUI unresponsive.
-        worker = Worker(self.doForecast, self.flightParameters(), error_callback=self.showError)
+        if self.ui.check_hourly.isChecked():
+            worker = Worker(
+                    self.doHourlyForecast,
+                    self.flightParameters(),
+                    self.ui.spin_hourly.value(),
+                    error_callback=self.showError)
+        else:
+            worker = Worker(
+                    self.doForecast,
+                    self.flightParameters(),
+                    error_callback=self.showError)
         worker.signals.result.connect(self.forecastResult)
         worker.signals.finished.connect(self.forecastComplete)
         self.threadpool.start(worker)

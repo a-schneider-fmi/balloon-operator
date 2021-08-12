@@ -573,6 +573,76 @@ def liveForecast(
     return
 
 
+def hourlyForecast(
+        launch_datetime, launch_lon, launch_lat, launch_altitude,
+        payload_weight, payload_area, ascent_velocity, top_height,
+        parachute_parameters,
+        forecast_length,
+        timestep, model_path, output_file,
+        descent_velocity=None,
+        webpage=None, upload=None):
+    gpx = gpxpy.gpx.GPX()
+    gpx.name = 'Hourly forecast'
+    gpx.waypoints.append(gpxpy.gpx.GPXWaypoint(
+            launch_lat, launch_lon, elevation=launch_altitude,
+            name='Launch', description='Launch point'))
+    hourly_segment = gpxpy.gpx.GPXTrackSegment()
+    individual_tracks = []
+    individual_waypoints = []
+    if launch_datetime is None:
+        launch_datetime = utils.roundHours(datetime.datetime.utcnow(), 1) # Round current time up to next full hour.
+    for i_hour in range(forecast_length):
+        filelist = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
+        if filelist is None or len(filelist) == 0:
+            break
+        logging.info('Forecast for launch at {} ...'.format(launch_datetime))
+        model_data = readGfsDataFiles(filelist)
+        flight_track, flight_waypoints, flight_range = predictBalloonFlight(
+            launch_datetime, launch_lon, launch_lat, launch_altitude,
+            payload_weight, payload_area, ascent_velocity, top_height,
+            parachute_parameters, model_data, timestep, 
+            descent_velocity=descent_velocity, 
+            descent_only=False)
+        flight_track.name = 'Launch {}'.format(launch_datetime)
+        flight_track.join(0)
+        individual_tracks.append(flight_track)
+        individual_waypoints.append(flight_waypoints)
+        landing_lon = flight_track.segments[-1].points[-1].longitude
+        landing_lat = flight_track.segments[-1].points[-1].latitude
+        landing_alt = flight_track.segments[-1].points[-1].elevation
+        flight_range = geog.distance([launch_lon, launch_lat], [landing_lon, landing_lat]) / 1000.
+        duration = flight_track.segments[-1].points[-1].time - launch_datetime
+        print('Launch {}: landing at {:.5f}° {:.5f}° {:.0f} m, range {:.1f} km, duration {}'.format(
+                launch_datetime, landing_lon, landing_lat, landing_alt, flight_range, duration))
+        gpx.waypoints.append(gpxpy.gpx.GPXWaypoint(
+                landing_lat,
+                landing_lon,
+                elevation=landing_alt,
+                time=launch_datetime,
+                name='{}'.format(launch_datetime),
+                description='Landing point for launch at {}, range {:.1f} km'.format(launch_datetime, flight_range)))
+        hourly_segment.points.append(gpxpy.gpx.GPXTrackPoint(
+                landing_lat,
+                landing_lon,
+                elevation=landing_alt,
+                time=launch_datetime))
+        del model_data
+        launch_datetime += datetime.timedelta(hours=1)
+    if i_hour == 0:
+        logging.error('No forecasts done due to missing data.')
+        hourly_track = None
+    else:
+        hourly_track = gpxpy.gpx.GPXTrack(name='Landing points')
+        hourly_track.segments.append(hourly_segment)
+        gpx.tracks.append(hourly_track)
+        for ind in range(forecast_length):
+            gpx.tracks.append(individual_tracks[ind])
+        writeGpx(gpx, output_file, upload=upload)
+        if webpage:
+            createWebpage(individual_tracks, individual_waypoints, webpage, hourly=gpx.waypoints, upload=upload)
+    return hourly_track, individual_tracks, individual_waypoints
+
+
 def writeGpx(track, output_file, waypoints=None, name=None, description=None, upload=None):
     """
     Write a trajectory to a GPX file.
@@ -877,65 +947,14 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
             kml_output=kml_output)
 
     elif hourly: # Hourly landing site forecast.
-        forecast_length = hourly
-        gpx = gpxpy.gpx.GPX()
-        gpx.name = 'Hourly forecast'
-        gpx.waypoints.append(gpxpy.gpx.GPXWaypoint(
-                launch_lat, launch_lon, elevation=launch_altitude,
-                name='Launch', description='Launch point'))
-        hourly_segment = gpxpy.gpx.GPXTrackSegment()
-        individual_tracks = []
-        individual_waypoints = []
-        if launch_datetime is None:
-            launch_datetime = utils.roundHours(datetime.datetime.utcnow(), 1) # Round current time up to next full hour.
-        for i_hour in range(forecast_length):
-            filelist = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
-            if filelist is None or len(filelist) == 0:
-                break
-            logging.info('Forecast for launch at {} ...'.format(launch_datetime))
-            model_data = readGfsDataFiles(filelist)
-            flight_track, flight_waypoints, flight_range = predictBalloonFlight(
-                launch_datetime, launch_lon, launch_lat, launch_altitude,
-                payload_weight, payload_area, ascent_velocity, top_height,
-                parachute_parameters, model_data, timestep, 
-                descent_velocity=descent_velocity, 
-                descent_only=descent_only)
-            flight_track.name = 'Launch {}'.format(launch_datetime)
-            flight_track.join(0)
-            individual_tracks.append(flight_track)
-            individual_waypoints.append(flight_waypoints)
-            landing_lon = flight_track.segments[-1].points[-1].longitude
-            landing_lat = flight_track.segments[-1].points[-1].latitude
-            landing_alt = flight_track.segments[-1].points[-1].elevation
-            flight_range = geog.distance([launch_lon, launch_lat], [landing_lon, landing_lat]) / 1000.
-            duration = flight_track.segments[-1].points[-1].time - launch_datetime
-            print('Launch {}: landing at {:.5f}° {:.5f}° {:.0f} m, range {:.1f} km, duration {}'.format(
-                    launch_datetime, landing_lon, landing_lat, landing_alt, flight_range, duration))
-            gpx.waypoints.append(gpxpy.gpx.GPXWaypoint(
-                    landing_lat,
-                    landing_lon,
-                    elevation=landing_alt,
-                    time=launch_datetime,
-                    name='{}'.format(launch_datetime),
-                    description='Landing point for launch at {}, range {:.1f} km'.format(launch_datetime, flight_range)))
-            hourly_segment.points.append(gpxpy.gpx.GPXTrackPoint(
-                    landing_lat,
-                    landing_lon,
-                    elevation=landing_alt,
-                    time=launch_datetime))
-            del model_data
-            launch_datetime += datetime.timedelta(hours=1)
-        if i_hour == 0:
-            logging.error('No forecasts done due to missing data.')
-        else:
-            hourly_track = gpxpy.gpx.GPXTrack(name='Landing points')
-            hourly_track.segments.append(hourly_segment)
-            gpx.tracks.append(hourly_track)
-            for ind in range(forecast_length):
-                gpx.tracks.append(individual_tracks[ind])
-            writeGpx(gpx, output_file, upload=upload)
-            if webpage:
-                createWebpage(individual_tracks, individual_waypoints, webpage, hourly=gpx.waypoints, upload=upload)
+        hourlyForecast(
+            launch_datetime, launch_lon, launch_lat, launch_altitude,
+            payload_weight, payload_area, ascent_velocity, top_height,
+            parachute_parameters,
+            hourly,
+            timestep, model_path, output_file,
+            descent_velocity=descent_velocity,
+            webpage=webpage, upload=upload)
 
     else: # Normal trajectory computation.
         # Download and read in model data.
