@@ -160,7 +160,11 @@ def getGfsData(launch_lon, launch_lat, launch_datetime, dest_dir, model_resoluti
             break
         gfs_datetime -= datetime.timedelta(hours=6)
         forecast_time += 6
-    filelist = [filename]
+    if filename is None:
+        filelist = []
+        return filelist
+    else:
+        filelist = [filename]
     for delta_t in range(1,timesteps):
         filename = downloadGfs(lon_range, lat_range, gfs_datetime, forecast_time+delta_t, dest_dir, model_resolution=model_resolution)
         if filename is not None:

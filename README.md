@@ -65,7 +65,18 @@ the PYTHONPATH.
   HGT_DIR environment variable should point to the location of the unpacked data.
 
 
-## Documentation
+## Graphical user interface
+
+A graphical user interface exposing almost all functionality is `operator_gui.py`.
+Data can be pre-loaded with command-line arguments:
+
+* `-p payload_config_file` (long name `--payload`): load payload configuration from ini file
+* `-c comm_config_file` (long name `--config`): load communication configuration from ini file
+* `-b balloon_param.ini` (long name `--balloon-param`): balloon parameter file (default `totex_balloon_parameters.tsv`)
+* `--parachute-param parachute_param.ini`: parachute parameter file (default `parachute_parameters.tsv`)
+
+
+## Command-line tools
 
 ### Trajectory predictor
 
@@ -83,6 +94,27 @@ Arguments:
 * `-u comm.ini` : upload results to web server
 * `-o output_filename` : write output in file `output_filename`
 * `--log` : set verbosity (CRITICAL, ERROR, WARNING, INFO, DEBUG), default INFO
+
+### SBD message generator and sender
+
+A command-line program to encode a binary SBD message and optionally send it to a mobile device.
+
+Arguments:
+* `-p lon,lat,alt`: include given position in message
+* `-t [YY-mm-ddTHH:MM:SS]`: include time in message (now if now string specified)
+* `-u n[,m]`: include userfunction n (and m) in message, where n and m are digits between 1 and 8
+* `-o filename`: output binary message to given file
+* `-s agt.ini` : send message to device specified in given ini file
+
+The ini file should have the following entries:
+* option in section `device`:
+    * `imei`: The unique IMEI of the RockBLOCK to send to
+* options in section `rockblock`:
+    * `user`: Rock 7 Core username
+    * `password`: Rock 7 Core password
+
+
+## File formats
 
 ### Flight configuration file
 
@@ -115,6 +147,11 @@ An example is included in `comm.ini`. The configuration contains:
     * `user`: username for IMAP
     * `password`: password for IMAP
     * `from`: from address to be filtered for, e.g. `300123456789012@rockblock.rock7.com`
+* options in section `rockblock`:
+    * `user`: username at Rock 7 Core (used to send messages to devices)
+    * `password`: password at Rock 7 Core (used to send messages to devices)
+* options in section `rockblock_devices`:
+    * Provide a list of RockBLOCK devices in the format `Name = imei`
 * options in section `webserver`:
     * `protocol`: protocol by which to upload data to webserver, `ftp`, `sftp` or `post`
     * `host`: hostname on which to upload results (or upload URL for post method)
@@ -143,21 +180,3 @@ The first line is treated as header line.
 A file in tab separated value format with parachute parameters containing the
 three columns parachute name, diameter (in m), and drag coefficient.
 The first line is treated as header line.
-
-### SBD message generator and sender
-
-A command-line program to encode a binary SBD message and optionally send it to a mobile device.
-
-Arguments:
-* `-p lon,lat,alt`: include given position in message
-* `-t [YY-mm-ddTHH:MM:SS]`: include time in message (now if now string specified)
-* `-u n[,m]`: include userfunction n (and m) in message, where n and m are digits between 1 and 8
-* `-o filename`: output binary message to given file
-* `-s agt.ini` : send message to device specified in given ini file
-
-The ini file should have the following entries:
-* option in section `device`:
-    * `imei`: The unique IMEI of the RockBLOCK to send to
-* options in section `rockblock`:
-    * `username`: Rock 7 Core username
-    * `password`: Rock 7 Core password

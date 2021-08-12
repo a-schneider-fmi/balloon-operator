@@ -9,11 +9,12 @@ Created on Wed Jul 21 18:34:53 2021
 
 import sys
 from PySide6.QtWidgets import QApplication, QWidget, QFileDialog, QMessageBox
-from PySide6.QtCore import Slot, Signal, QObject, QRunnable, QThreadPool
+from PySide6.QtCore import Slot, Signal, QObject, QRunnable, QThreadPool, QTimer
 from PySide6.QtGui import QIcon, QPixmap
 from gui_mainwidget import Ui_MainWidget
+from gui_operatorwidget import Ui_OperatorWidget
 import gui_icons
-from balloon_operator import filling, parachute, trajectory_predictor, download_model_data
+from balloon_operator import filling, parachute, trajectory_predictor, download_model_data, sbd_receiver, sbd_creator
 import configparser
 import datetime
 import argparse
@@ -22,6 +23,9 @@ import numpy as np
 import os.path
 import traceback
 import logging
+import gpxpy
+import gpxpy.gpx
+import geog
 
 
 """ Worker thread classes =====================================================
@@ -96,6 +100,8 @@ class MainWidget(QWidget):
         self.ui = Ui_MainWidget()
         self.ui.setupUi(self)
         self.setWindowIcon(QIcon(QPixmap(":/icons/icon.png")))
+        self.operator_widget = OperatorWidget()
+        self.operator_widget.stopLiveOperation.connect(self.onStopLiveOperation)
 
         self.ui.dt_launch_datetime.setDateTime(datetime.datetime.utcnow())
         for fill_gas in filling.FillGas:
@@ -121,6 +127,7 @@ class MainWidget(QWidget):
         self.ui.spin_desc_velocity.valueChanged.connect(self.onChangeBalloonParameter)
         self.ui.button_output_file_dialog.clicked.connect(self.onOutputFileSelector)
         self.ui.button_forecast.clicked.connect(self.onForecast)
+        self.ui.button_live_operation.clicked.connect(self.onLiveOperation)
 
         self.threadpool = QThreadPool()
         logging.info('Multithreading with maximum {} threads'.format(self.threadpool.maxThreadCount()))
@@ -218,6 +225,9 @@ class MainWidget(QWidget):
             config.write(fd)
 
     def computeBalloonPerformance(self):
+        """
+        Compute balloon performance and update display.
+        """
         payload_weight = self.ui.spin_payload_weight.value()
         fill_gas = self.ui.combo_fill_gas.currentData()
         ascent_balloon_parameters = filling.lookupParameters(self.balloon_parameter_list, self.ui.combo_asc_balloon.currentData())
@@ -256,19 +266,53 @@ class MainWidget(QWidget):
                 'descent_launch_radius': descent_launch_radius,
                 'descent_burst_height': descent_burst_height}
 
-    def setResult(self, longitude, latitude, altitude, flight_range):
-        self.ui.label_landing_longitude_value.setText('{:.5f}°'.format(longitude))
-        self.ui.label_landing_latitude_value.setText('{:.5f}°'.format(latitude))
-        self.ui.label_landing_altitude_value.setText('{:.0f} m'.format(altitude))
-        self.ui.label_range_value.setText('{:.0f} km'.format(flight_range))
+    def setLanding(self, longitude, latitude, altitude, flight_range):
+        """
+        Set result section of UI.
+        """
+        self.ui.label_landing_longitude_value.setText(
+                '--' if longitude is None else '{:.5f}°'.format(longitude))
+        self.ui.label_landing_latitude_value.setText(
+                '--' if latitude is None else '{:.5f}°'.format(latitude))
+        self.ui.label_landing_altitude_value.setText(
+                '--' if altitude is None else '{:.0f} m'.format(altitude))
+        self.ui.label_range_value.setText(
+                '--' if flight_range is None else '{:.0f} km'.format(flight_range))
 
-    def doForecast(self, parameters, progress_callback=None):
+    def flightParameters(self):
+        """
+        Get parameters for flight.
+        """
+        parameters = {
+                'parachute_parameters': parachute.lookupParachuteParameters(self.parachute_parameter_list, self.ui.combo_parachute.currentText()),
+                'payload_area': self.ui.spin_payload_area.value(),
+                'launch_lon': self.ui.spin_launch_longitude.value(),
+                'launch_lat': self.ui.spin_launch_latitude.value(),
+                'launch_alt': self.ui.spin_launch_altitude.value(),
+                'launch_datetime': self.ui.dt_launch_datetime.dateTime().toPython(),
+                'output_file': self.ui.edit_output_file.text()
+                }
+        if self.ui.check_cut.isChecked():
+            parameters['top_altitude'] = np.minimum(self.ui.spin_cut_altitude.value(), self.balloon_performance['ascent_burst_height'])
+        else:
+            if 'ascent_burst_height' in self.balloon_performance:
+                parameters['top_altitude'] = self.balloon_performance['ascent_burst_height']
+            else:
+                parameters['top_altitude'] = 0.
+        parameters.update(self.balloon_performance)
+        return parameters
+
+    def doForecast(self, parameters, progress_callback=None, error_callback=None):
+        """
+        Compute a trajectory forecast.
+        """
         # Download and read in model data.
         model_filenames = download_model_data.getGfsData(
                 parameters['launch_lon'], parameters['launch_lat'],
                 parameters['launch_datetime'], self.model_path)
-        if model_filenames is None:
-            QMessageBox.critical(self, 'Data retrieval error', 'Error retrieving model data.')
+        if model_filenames is None or len(model_filenames) == 0:
+            if callable(error_callback):
+                error_callback('Error retrieving model data.')
             return None
         model_data = trajectory_predictor.readGfsDataFiles(model_filenames)
     
@@ -282,7 +326,7 @@ class MainWidget(QWidget):
             parameters['parachute_parameters'],
             model_data, self.timestep, 
             descent_velocity=parameters['descent_velocity'])
-        self.setResult(track.segments[-1].points[-1].longitude, track.segments[-1].points[-1].latitude, track.segments[-1].points[-1].elevation, flight_range)
+        self.setLanding(track.segments[-1].points[-1].longitude, track.segments[-1].points[-1].latitude, track.segments[-1].points[-1].elevation, flight_range)
 
         # Save resulting trajectory.
         output_file = parameters['output_file']
@@ -299,11 +343,18 @@ class MainWidget(QWidget):
 
     @Slot()
     def onLoadPayload(self):
+        """
+        Callback when clicking the load payload button.
+        """
         filename = QFileDialog.getOpenFileName(self, 'Open payload information', None, 'Configuration files (*.ini);;All files (*)')
-        self.loadPayloadIni(filename)
+        if filename:
+            self.loadPayloadIni(filename)
 
     @Slot()
     def onSavePayload(self):
+        """
+        Callback when clicking the save payload button.
+        """
         filename, filetype = QFileDialog.getSaveFileName(self, 'Save payload information', None, 'Configuration files (*.ini);;All files (*)')
         if filename:
             if os.path.splitext(filename)[1].lower() != '.ini':
@@ -312,20 +363,32 @@ class MainWidget(QWidget):
 
     @Slot()
     def onChangeCheckDescentBalloon(self, new_state):
+        """
+        Callback when the checkbox to use a descent balloon is changed.
+        """
         self.ui.combo_desc_balloon.setEnabled(new_state)
         self.ui.spin_desc_velocity.setEnabled(new_state)
         self.computeBalloonPerformance()
 
     @Slot()
     def onChangeCheckCut(self, new_state):
+        """
+        Callback when the checkbox to use a cutter is changed.
+        """
         self.ui.spin_cut_altitude.setEnabled(new_state)
 
     @Slot()
     def onChangeBalloonParameter(self, value):
+        """
+        Callback when a balloon parameter is changed.
+        """
         self.computeBalloonPerformance()
 
     @Slot()
     def onOutputFileSelector(self):
+        """
+        Callback when the button to select an output file is clicked.
+        """
         output_file, filetype = QFileDialog.getSaveFileName(self, 'Save trajectory', os.path.dirname(self.ui.edit_output_file.text()), 'GPX tracks (*.gpx);;KML tracks (*.kml)')
         if output_file:
             if filetype == 'GPX tracks (*.gpx)' and os.path.splitext(output_file)[1].lower() != '.gpx':
@@ -336,35 +399,434 @@ class MainWidget(QWidget):
 
     @Slot()
     def forecastComplete(self):
+        """
+        Callback executed when the thread to compute a forecast completes.
+        """
         self.ui.button_forecast.setEnabled(True)
 
     @Slot()
     def forecastResult(self, result):
+        """
+        Callback to handle the result of the thread computing the forecast.
+        """
         print(result)
 
     @Slot()
     def onForecast(self):
+        """
+        Callback when the button to do a forecast is clicked.
+        """
         self.ui.button_forecast.setEnabled(False)
-        parameters = {
-                'parachute_parameters': parachute.lookupParachuteParameters(self.parachute_parameter_list, self.ui.combo_parachute.currentText()),
-                'payload_area': self.ui.spin_payload_area.value(),
-                'launch_lon': self.ui.spin_launch_longitude.value(),
-                'launch_lat': self.ui.spin_launch_latitude.value(),
-                'launch_alt': self.ui.spin_launch_altitude.value(),
-                'launch_datetime': self.ui.dt_launch_datetime.dateTime().toPython(),
-                'output_file': self.ui.edit_output_file.text()
-                }
-        if self.ui.check_cut.isChecked():
-            parameters['top_altitude'] = np.minimum(self.ui.spin_cut_altitude.value(), self.balloon_performance['ascent_burst_height'])
-        else:
-            parameters['top_altitude'] = self.balloon_performance['ascent_burst_height']
-        parameters.update(self.balloon_performance)
 
         # Execute calculation in a separate thread in order not to make the GUI unresponsive.
-        worker = Worker(self.doForecast, parameters) # Any other args, kwargs are passed to the run function
+        worker = Worker(self.doForecast, self.flightParameters(), error_callback=self.showError)
         worker.signals.result.connect(self.forecastResult)
         worker.signals.finished.connect(self.forecastComplete)
         self.threadpool.start(worker)
+
+    @Slot()
+    def onLiveOperation(self):
+        """
+        Callback when the button to do live operation is clicked.
+        """
+        if not self.balloon_performance:
+            QMessageBox.critical(self, 'Live operation', 'Flight data not set. Please make the respective settings first.')
+            return
+        self.ui.button_live_operation.setEnabled(False)
+        self.operator_widget.startLiveForecast(self.flightParameters(), self.model_path, self.timestep)
+
+    @Slot()
+    def onStopLiveOperation(self):
+        """
+        Callback when the live operation stops (e.g. the live operation window is closed)
+        """
+        self.ui.button_live_operation.setEnabled(True)
+
+    @Slot()
+    def showError(self, message):
+        """
+        Callback to be executed when a thread produces an error.
+        """
+        QMessageBox.critical(self, 'Balloon operator', message)
+
+
+""" OperatorWidget ============================================================
+"""
+class OperatorWidget(QWidget):
+    def __init__(self):
+        super(OperatorWidget, self).__init__()
+        self.ui = Ui_OperatorWidget()
+        self.ui.setupUi(self)
+        self.setWindowIcon(QIcon(QPixmap(":/icons/icon.png")))
+        self.ui.button_load_config.clicked.connect(self.onLoadConfig)
+        self.ui.spin_query_time.valueChanged.connect(self.onChangeQueryTime)
+        self.ui.button_query_now.clicked.connect(self.onQueryNow)
+        self.ui.button_send.clicked.connect(self.onSendIridium)
+        self.flight_parameters = {}
+        self.timestep = 10
+        self.model_path = tempfile.gettempdir()
+        self.model_data = None
+        self.comm_settings = None
+        self.imap = None
+        self.timer = QTimer(self)
+        self.timer.setInterval(300000) # default time of 5 minutes
+        self.timer.timeout.connect(self.queryMessages)
+        self.threadpool = QThreadPool()
+
+    stopLiveOperation = Signal()
+
+    def closeEvent(self, event):
+        """
+        Overrides QWidget's closeEvent method.
+        """
+        self.stopLiveForecast()
+        self.stopLiveOperation.emit()
+
+    def loadConfig(self, config_file):
+        """
+        Load a communication configuration file.
+        """
+        config = configparser.ConfigParser()
+        config.read(config_file)
+        self.comm_settings = {
+                'email': {
+                        'host': config['email'].get('host'),
+                        'user': config['email'].get('user'),
+                        'password': config['email'].get('password'),
+                        'from': config['email'].get('from', fallback='@rockblock.rock7.com')
+                        },
+                'rockblock': {
+                        'user': config['rockblock'].get('user'),
+                        'password': config['rockblock'].get('password')
+                        },
+                'upload': {
+                        'protocol': config['webserver'].get('protocol', fallback='ftp'),
+                        'host': config['webserver'].get('host'),
+                        'user': config['webserver'].get('user', fallback=None),
+                        'password': config['webserver'].get('password', fallback=None),
+                        'directory': config['webserver'].get('directory', fallback=None)
+                        },
+                'webpage': {
+                        'networklink': config['webserver'].get('networklink', fallback=None),
+                        'refreshinterval': config['webserver'].get('refreshinterval', fallback=None),
+                        'webpage': config['webserver'].get('webpage', fallback=None),
+                        },
+                'output': {
+                        'format': 'gpx',
+                        'filename': config['output'].get('filename', fallback='trajectory.kml'),
+                        'directory': config['output'].get('directory', fallback=tempfile.gettempdir())
+                        },
+                'geofence': {
+                        'radius': None
+                        }
+                }
+        if config.has_section('geofence') and 'radius' in config['geofence']:
+            self.comm_settings['geofence']['radius'] = config['geofence'].getfloat('radius')
+        self.loadIridiumList(config_file)
+
+    def loadIridiumList(self, config_file):
+        """
+        Load list of IRIDIUM modems from an ini file into the combo boxes.
+        """
+        config = configparser.ConfigParser()
+        config.optionxform = str # Mind case in option names.
+        config.read(config_file)
+        self.ui.combo_iridium.clear()
+        self.ui.combo_receive_imei.clear()
+        self.ui.combo_receive_imei.addItem('All', '')
+        for name in config.options('rockblock_devices'):
+            imei = config['rockblock_devices'].get(name)
+            self.ui.combo_iridium.addItem('{} ({})'.format(name, imei), imei)
+            self.ui.combo_receive_imei.addItem('{} ({})'.format(name, imei), str(imei))
+        self.comm_settings['rockblock']['user'] = config['rockblock'].get('user')
+        self.comm_settings['rockblock']['password'] = config['rockblock'].get('password')
+
+    def setStandardData(self, data):
+        """
+        Sets standard data from a received IRIDIUM message.
+        """
+        if 'DATETIME' in data:
+            self.ui.label_cur_datetime_value.setText('{}'.format(data['DATETIME'].isoformat()))
+        else:
+            self.ui.label_cur_datetime_value.setText('??.??.???? ??:??:??')
+        if 'LON' in data:
+            self.ui.label_cur_longitude_value.setText('{:.6f}°'.format(data['LON']))
+        else:
+            self.ui.label_cur_longitude_value.setText('??°')
+        if 'LAT' in data:
+            self.ui.label_cur_latitude_value.setText('{:.6f}°'.format(data['LAT']))
+        else:
+            self.ui.label_cur_latitude_value.setText('??°')
+        if 'ALT' in data:
+            self.ui.label_cur_altitude_value.setText('{:.1f} m'.format(data['ALT']))
+        else:
+            self.ui.label_cur_altitude_value.setText('?? m')
+        if 'PRESS' in data:
+            self.ui.label_cur_pressure_value.setText('{} hPa'.format(data['PRESS']))
+        else:
+            self.ui.label_cur_pressure_value.setText('?? hPa')
+        if 'TEMP' in data:
+            self.ui.label_cur_temperature_value.setText('{:.1f} °C'.format(data['TEMP']))
+        else:
+            self.ui.label_cur_temperature_value.setText('?? °C')
+        if 'BATTV' in data:
+            self.ui.label_cur_battery_value.setText('{:.2f} V'.format(data['BATTV']))
+        else:
+            self.ui.label_cur_battery_value.setText('?? V')
+
+    def setLanding(self, longitude, latitude, altitude, flight_range):
+        """
+        Set landing section of UI.
+        """
+        self.ui.label_landing_longitude_value.setText(
+                '--' if longitude is None else '{:.5f}°'.format(longitude))
+        self.ui.label_landing_latitude_value.setText(
+                '--' if latitude is None else '{:.5f}°'.format(latitude))
+        self.ui.label_landing_altitude_value.setText(
+                '--' if altitude is None else '{:.0f} m'.format(altitude))
+        self.ui.label_range_value.setText(
+                '--' if flight_range is None else '{:.0f} km'.format(flight_range))
+
+    def downloadModelData(self, progress_callback=None, error_callback=None):
+        """
+        Downloads model data for live forecast.
+        """
+        self.ui.label_status.setText('Downloading model data.')
+        if self.flight_parameters['launch_datetime'] is None:
+            self.flight_parameters['launch_datetime'] = datetime.datetime.utcnow()
+        filelist = download_model_data.getGfsData(
+                self.flight_parameters['launch_lon'],
+                self.flight_parameters['launch_lat'],
+                self.flight_parameters['launch_datetime'],
+                self.model_path,
+                timesteps=7)
+        if filelist is None or len(filelist) == 0:
+            if callable(error_callback):
+                error_callback('Error downloading model data.')
+            return
+        self.model_data = trajectory_predictor.readGfsDataFiles(filelist)
+
+    def startLiveForecast(self, parameters, model_path=tempfile.gettempdir(), timestep=10):
+        """
+        Starts a live forecast.
+        """
+        self.flight_parameters = parameters
+        self.model_path = model_path
+        self.timestep = timestep
+        self.segment_tracked = gpxpy.gpx.GPXTrackSegment()
+        self.segment_tracked.points.append(gpxpy.gpx.GPXTrackPoint(
+                parameters['launch_lat'],
+                parameters['launch_lon'],
+                elevation=parameters['launch_alt'],
+                time=parameters['launch_datetime']))
+        self.launch_point = gpxpy.gpx.GPXWaypoint(
+                parameters['launch_lat'],
+                parameters['launch_lon'],
+                elevation=parameters['launch_alt'],
+                time=parameters['launch_datetime'],
+                name='Launch')
+        self.top_point = None
+        self.ui.label_ascent_status_value.setText('ascending')
+        if self.comm_settings is None:
+            self.onLoadConfig()
+        self.imap = sbd_receiver.connectImap(
+                self.comm_settings['email']['host'],
+                self.comm_settings['email']['user'],
+                self.comm_settings['email']['password'])
+        worker = Worker(self.downloadModelData, error_callback=self.showError)
+        worker.signals.finished.connect(self.onWorkerFinished)
+        worker.signals.finished.connect(self.timer.start)
+        self.threadpool.start(worker)
+        self.show()
+
+    def stopLiveForecast(self):
+        """
+        Stops a live forecast.
+        """
+        self.timer.stop()
+        sbd_receiver.disconnectImap(self.imap)
+        self.model_data = None
+
+    def queryMessages(self):
+        """
+        Query new IRIDIUM messages from server.
+        """
+        from_address = self.ui.combo_receive_imei.currentData() + '@rockblock.rock7.com'
+        print("Querying messages from {} ...".format(from_address)) # DEBUG
+        messages = sbd_receiver.getMessages(self.imap, from_address=from_address, all_messges=False)
+        if len(messages) > 0:
+            logging.info('Received {} message(s).'.format(len(messages)))
+            logging.info('Last: {}'.format(messages[-1]))
+            is_invalid = np.zeros(len(messages), dtype=bool)
+            for ind_msg in range(len(messages)):
+                msg = messages[ind_msg]
+                if not trajectory_predictor.checkGeofence(
+                        msg['LON'], msg['LAT'],
+                        self.flight_parameters['launch_lon'],
+                        self.flight_parameters['launch_lat'],
+                        self.comm_settings['geofence']['radius']):
+                    is_invalid[ind_msg] = True
+                else:
+                    self.segment_tracked.points.append(sbd_receiver.message2trackpoint(msg))
+            print('Valid messages: {}'.format(np.array(messages)[~is_invalid])) # DEBUG
+            if not all(is_invalid):
+                last_msg = np.array(messages)[~is_invalid][-1]
+                self.setStandardData(last_msg)
+                worker = Worker(self.doLiveForecast, last_msg, error_callback=self.showError)
+                worker.signals.finished.connect(self.onWorkerFinished)
+                self.threadpool.start(worker)
+
+    def doLiveForecast(self, msg, progress_callback=None, error_callback=None):
+        """
+        Performs a live forecast.
+        This function is usually started in a separate worker thread.
+        """
+        print('Starting forecast from message: {}'.format(msg)) # DEBUG
+        self.ui.label_status.setText('Computing trajectory forecast.')
+        if self.model_data is None:
+            print('No model data present, downloading.') # DEBUG
+            self.downloadModelData(error_callback=error_callback)
+        if self.model_data is None:
+            if callable(error_callback):
+                error_callback('Cannot retrieve model data.')
+            return
+        if self.top_point is None:
+            ind_top = trajectory_predictor.detectDescent(self.segment_tracked, self.flight_parameters['launch_alt'])
+            print('ind_top', ind_top) # DEBUG
+            if ind_top is not None: # descent detected
+                self.top_point = sbd_receiver.message2waypoint(msg, name='Ceiling')
+                self.ui.label_ascent_status_value.setText('descending')
+        if self.segment_tracked.points[-1].elevation > np.maximum(self.flight_parameters['top_altitude'], self.top_point.elevation if self.top_point is not None else 0.):
+            logging.info('Balloon above top altitude. Assuming descent is imminent.')
+            self.top_point = sbd_receiver.message2waypoint(msg, name='Ceiling')
+        track = gpxpy.gpx.GPXTrack()
+        track.segments.append(self.segment_tracked)
+        waypoints = [self.launch_point]
+        if self.top_point is None:
+            waypoints.append(sbd_receiver.message2waypoint(msg, name='Current'))
+            segment_ascent, cur_lon, cur_lat, cur_datetime = trajectory_predictor.predictAscent(
+                    self.segment_tracked.points[-1].time,
+                    self.segment_tracked.points[-1].longitude,
+                    self.segment_tracked.points[-1].latitude,
+                    self.segment_tracked.points[-1].elevation,
+                    self.flight_parameters['top_altitude'],
+                    self.flight_parameters['ascent_velocity'],
+                    self.model_data,
+                    self.timestep)
+            track.segments.append(segment_ascent)
+            waypoints.append(gpxpy.gpx.GPXWaypoint(
+                    cur_lat, cur_lon, elevation=self.flight_parameters['top_altitude'], time=cur_datetime, name='Ceiling'))
+        else:
+            waypoints.append(self.top_point)
+            waypoints.append(sbd_receiver.message2waypoint(msg, name='Current'))
+            cur_datetime = self.segment_tracked.points[-1].time
+            cur_lon = self.segment_tracked.points[-1].longitude
+            cur_lat = self.segment_tracked.points[-1].latitude
+            cur_alt = self.segment_tracked.points[-1].elevation
+        segment_descent, landing_lon, landing_lat = trajectory_predictor.predictDescent(
+                cur_datetime, cur_lon, cur_lat,
+                self.flight_parameters['top_altitude'] if self.top_point is None else cur_alt,
+                self.flight_parameters['descent_velocity'],
+                self.flight_parameters['parachute_parameters'],
+                self.flight_parameters['payload_weight'],
+                self.flight_parameters['payload_area'],
+                self.model_data,
+                self.timestep)
+        flight_range = geog.distance(
+                [self.flight_parameters['launch_lon'], self.flight_parameters['launch_lat']],
+                [landing_lon, landing_lat]) / 1000.
+        self.setLanding(landing_lon, landing_lat, segment_descent.points[-1].elevation, flight_range)
+        track.segments.append(segment_descent)
+        waypoints.append(gpxpy.gpx.GPXWaypoint(
+                landing_lat, landing_lon,
+                elevation=segment_descent.points[-1].elevation,
+                time=segment_descent.points[-1].time, name='Landing'))
+        if self.comm_settings['output']['format'].lower() == 'kml':
+            trajectory_predictor.writeKml(
+                    track,
+                    os.path.join(self.comm_settings['output']['directory'], self.comm_settings['output']['filename']),
+                    waypoints=waypoints,
+                    networklink=self.comm_settings['webpage']['networklink'],
+                    refreshinterval=self.comm_settings['webpage']['refreshinterval'],
+                    upload=self.comm_settings['upload'])
+        else:
+            trajectory_predictor.writeGpx(
+                    track,
+                    os.path.join(self.comm_settings['output']['directory'], self.comm_settings['output']['filename']),
+                    waypoints=waypoints,
+                    upload=self.comm_settings['upload'])
+        if self.comm_settings['webpage']['webpage']:
+            trajectory_predictor.createWebpage(track,
+                          waypoints,
+                          self.comm_settings['webpage']['webpage'],
+                          upload=self.comm_settings['upload'])
+
+    def sendIridiumMessage(self, imei, msg, username, password, progress_callback=None, error_callback=None):
+        """
+        Send an IRIDIUM message to a mobile device via RockBLOCK's web interface.
+        This function can be executed in a separate worker thread.
+        """
+        success, message = sbd_creator.sendMessage(imei, msg, username, password)
+        if success:
+            self.ui.label_status.setText('Message sent.')
+        else:
+            self.ui.label_status.setText('Sending message failed.')
+            if callable(error_callback):
+                error_callback('Failed to send message: {}'.format(message))
+
+    @Slot()
+    def onLoadConfig(self):
+        """
+        Callback for load config button.
+        """
+        filename = QFileDialog.getOpenFileName(self, 'Open communication settings', None, 'Configuration files (*.ini);;All files (*)')
+        if filename:
+            self.loadConfig(filename)
+
+    @Slot()
+    def onChangeQueryTime(self, value):
+        """
+        Callback when query time is changed.
+        """
+        self.timer.setInterval(value * 60. * 1000.)
+
+    @Slot()
+    def onQueryNow(self):
+        """
+        Callback when query now button is clicked.
+        """
+        self.queryMessages()
+
+    @Slot()
+    def onSendIridium(self):
+        """
+        Callback for button to send IRIDIUM message.
+        """
+        data = {}
+        if self.ui.check_cutter1.isChecked():
+            data['USERFUNC1'] = 1
+        if self.ui.check_cutter2.isChecked():
+            data['USERFUNC2'] = 1
+        msg = sbd_receiver.encodeSdb(data)
+        imei = self.ui.combo_iridium.currentData()
+        logging.info('Sending message "{}" to IMEI {} ...'.format(sbd_receiver.bin2asc(msg), imei))
+        self.ui.label_status.setText('Sending message ...')
+        worker = Worker(self.sendIridiumMessage, imei, msg, self.comm_settings['rockblock']['user'], self.comm_settings['rockblock']['password'], error_callback=self.showError)
+        self.threadpool.start(worker)
+
+    @Slot()
+    def onWorkerFinished(self):
+        """
+        Callback to be executed when a thread finishes.
+        """
+        self.ui.label_status.setText('Idle.')
+
+    @Slot()
+    def showError(self, message):
+        """
+        Callback to be executed when a thread produces an error.
+        """
+        QMessageBox.critical(self, 'Balloon operator', message)
 
 
 """ Script main ===============================================================
@@ -372,6 +834,7 @@ class MainWidget(QWidget):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser('Balloon ooperator GUI')
     parser.add_argument('-p', '--payload', required=False, default=None, help='Load payload configuration from ini file')
+    parser.add_argument('-c', '--config', required=False, default=None, help='Load configuration for operator from ini file')
     parser.add_argument('-b', '--balloon-param', required=False, default='totex_balloon_parameters.tsv', help='Balloon parameter file')
     parser.add_argument('--parachute-param', required=False, default='parachute_parameters.tsv', help='Parachute parameter file')
     args = parser.parse_args()
@@ -384,6 +847,8 @@ if __name__ == "__main__":
     else:
         main_widget.loadBalloonParameters(args.balloon_param)
         main_widget.loadParachuteParameters(args.parachute_param)
+    if args.config:
+        main_widget.operator_widget.loadConfig(args.config)
     main_widget.show()
 
     sys.exit(app.exec())

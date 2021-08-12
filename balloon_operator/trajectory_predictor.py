@@ -367,6 +367,54 @@ def predictBalloonFlight(
     return track, waypoints, flight_range
 
 
+def checkGeofence(cur_lon, cur_lat, launch_lon, launch_lat, radius):
+    """
+    Checks whether a given position is inside a geofence around the launch point.
+
+    @param cur_lon longitude of current position in degrees
+    @param cur_lat latitude of current position in degrees
+    @param launch_lon longitude of launch point in degrees
+    @param launch_lat latitude of launch point in degrees
+    @param radius geofence radius in km
+
+    @retval True point within geofence or radius unset
+    @retval False point outside geofence
+    """
+    if radius:
+        distance = geog.distance([launch_lon, launch_lat], [cur_lon, cur_lat]) / 1000.
+        if distance > radius:
+            logging.warning('Location outside geofence: {:.6f}° {:.6f}° distance {:.4f} km'.format(
+                    cur_lon, cur_lat, distance))
+            return False
+        else:
+            logging.debug('Distance to launch point: {:.4f} km'.format(distance))
+            return True
+    else:
+        return True
+
+
+def detectDescent(segment_tracked, launch_altitude):
+    """
+    Detect whether descent has begun (by cutting or bursting of the balloon).
+
+    @param segment_tracked gpxpy.gpx.GPXTrackSegment() object with balloon track
+    @param launch_altitude altitude of launch point in m
+
+    @return index of highest point in track if descent detected, None if still on ascent
+    """
+    if len(segment_tracked.points) >= 3:
+        last_heights = np.array([pkt.elevation for pkt in segment_tracked.points[-3:]])
+        vertical_velocites = np.diff(last_heights)
+        ind_max_height = np.argmax([pkt.elevation for pkt in segment_tracked.points])
+        max_height = segment_tracked.points[ind_max_height].elevation
+        if (vertical_velocites <= 0).all() and (max_height > launch_altitude + 100.): # If descent detected.
+            return ind_max_height
+        else:
+            return None
+    else:
+        return None
+
+
 def liveForecast(
         launch_datetime, launch_lon, launch_lat, launch_altitude,
         payload_weight, payload_area, ascent_velocity, top_height,
@@ -437,6 +485,9 @@ def liveForecast(
     if launch_datetime is None:
         launch_datetime = datetime.datetime.utcnow()
     filelist = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path, timesteps=7)
+    if filelist is None or len(filelist) == 0:
+        logging.critical('Cannot download model data.')
+        return
     model_data = readGfsDataFiles(filelist)
 
     # Do live prediction.
@@ -455,25 +506,18 @@ def liveForecast(
                 is_invalid = np.zeros(len(messages), dtype=bool)
                 for ind_msg in range(len(messages)):
                     msg = messages[ind_msg]
-                    if geofence_radius:
-                        distance = geog.distance([launch_lon, launch_lat], [msg['LON'], msg['LAT']]) / 1000.
-                        if distance > geofence_radius:
-                            logging.warning('Ignoring location outside geofence: {:.6f}° {:.6f}° distance {:.4f} km'.format(
-                                    msg['LON'], msg['LAT'], distance))
-                            is_invalid[ind_msg] = True
-                            continue
-                        else:
-                            logging.debug('Distance to launch point: {:.4f} km'.format(distance))
+                    if not checkGeofence(msg['LON'], msg['LAT'], launch_lon, launch_lat, geofence_radius):
+                        is_invalid[ind_msg] = True
+                        continue
                     segment_tracked.points.append(sbd_receiver.message2trackpoint(msg))
                 if all(is_invalid):
                     msg = None
                     continue
-                if len(segment_tracked.points) >= 3 and is_ascending:
-                    last_heights = np.array([pkt.elevation for pkt in segment_tracked.points[-3:]])
-                    vertical_velocites = np.diff(last_heights)
-                    if (vertical_velocites < 0).all() and (last_heights > launch_altitude + 100.).all():
+                msg = np.array(messages)[~is_invalid][-1] # last valid message
+                if is_ascending:
+                    ind_top = detectDescent(segment_tracked, launch_altitude)
+                    if ind_top is not None:
                         is_ascending = False
-                        ind_top = np.argmax([pkt.elevation for pkt in segment_tracked.points])
                         top_height = segment_tracked.points[ind_top].elevation
                         top_lon = segment_tracked.points[ind_top].longitude
                         top_lat = segment_tracked.points[ind_top].latitude
@@ -496,16 +540,7 @@ def liveForecast(
                         elevation=segment_tracked.points[0].elevation,
                         time=segment_tracked.points[0].time,
                         name='Launch')]
-                status_text = ''
-                if 'PRESS' in msg:
-                    status_text += 'Pressure: {} hPa\n'.format(msg['PRESS'])
-                if 'TEMP' in msg:
-                    status_text += 'Temperature: {:.1f} °C\n'.format(msg['TEMP'])
-                if 'BATTV' in msg:
-                    status_text += 'Battery: {:.2f} V\n'.format(msg['BATTV'])
-                waypoints.append(gpxpy.gpx.GPXWaypoint(
-                        cur_lat, cur_lon, elevation=cur_alt, time=cur_datetime, name='Current',
-                        description=status_text))
+                waypoints.append(sbd_receiver.message2waypoint(msg, 'Current'))
                 track = gpxpy.gpx.GPXTrack()
                 track.segments.append(segment_tracked)
                 if is_ascending:
@@ -855,7 +890,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
             launch_datetime = utils.roundHours(datetime.datetime.utcnow(), 1) # Round current time up to next full hour.
         for i_hour in range(forecast_length):
             filelist = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
-            if filelist is None:
+            if filelist is None or len(filelist) == 0:
                 break
             logging.info('Forecast for launch at {} ...'.format(launch_datetime))
             model_data = readGfsDataFiles(filelist)
@@ -890,19 +925,22 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
                     time=launch_datetime))
             del model_data
             launch_datetime += datetime.timedelta(hours=1)
-        hourly_track = gpxpy.gpx.GPXTrack(name='Landing points')
-        hourly_track.segments.append(hourly_segment)
-        gpx.tracks.append(hourly_track)
-        for ind in range(forecast_length):
-            gpx.tracks.append(individual_tracks[ind])
-        writeGpx(gpx, output_file, upload=upload)
-        if webpage:
-            createWebpage(individual_tracks, individual_waypoints, webpage, hourly=gpx.waypoints, upload=upload)
+        if i_hour == 0:
+            logging.error('No forecasts done due to missing data.')
+        else:
+            hourly_track = gpxpy.gpx.GPXTrack(name='Landing points')
+            hourly_track.segments.append(hourly_segment)
+            gpx.tracks.append(hourly_track)
+            for ind in range(forecast_length):
+                gpx.tracks.append(individual_tracks[ind])
+            writeGpx(gpx, output_file, upload=upload)
+            if webpage:
+                createWebpage(individual_tracks, individual_waypoints, webpage, hourly=gpx.waypoints, upload=upload)
 
     else: # Normal trajectory computation.
         # Download and read in model data.
         model_filenames = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
-        if model_filenames is None:
+        if model_filenames is None or len(model_filenames) == 0:
             logging.error('Error retrieving model data.')
             return
         model_data = readGfsDataFiles(model_filenames)

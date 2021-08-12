@@ -353,6 +353,28 @@ def message2trackpoint(msg):
                 comment='{} hPa'.format(msg['PRESS']) if 'PRESS' in msg else None)
 
 
+def message2waypoint(msg, name='Current'):
+    """
+    Creates a GPX waypoint from a translated IRIDIUM message.
+
+    @param msg translated SBD message
+    @param name name of the waypoint (default: 'Current')
+
+    @return pkt GPX waypoint corresponding to message data
+    """
+    status_text = ''
+    if 'PRESS' in msg:
+        status_text += 'Pressure: {} hPa\n'.format(msg['PRESS'])
+    if 'TEMP' in msg:
+        status_text += 'Temperature: {:.1f} °C\n'.format(msg['TEMP'])
+    if 'BATTV' in msg:
+        status_text += 'Battery: {:.2f} V\n'.format(msg['BATTV'])
+    pkt = gpxpy.gpx.GPXWaypoint(
+        msg['LAT'], msg['LON'], elevation=msg['ALT'], time=msg['DATETIME'],
+        name=name, description=status_text)
+    return pkt
+
+
 def connectImap(host, user, password):
     """
     Connect to IMAP server.

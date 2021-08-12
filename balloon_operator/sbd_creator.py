@@ -12,6 +12,7 @@ import datetime
 import requests
 import configparser
 import argparse
+import logging
 from balloon_operator import sbd_receiver
 
 
@@ -28,17 +29,22 @@ def sendMessage(imei, data, username, password):
     parts = resp.text.split(',')
     if parts[0] == 'OK':
         try:
-            print('Message {} sent.'.format(parts[1]))
+            logging.info('Message {} sent.'.format(parts[1]))
         except IndexError:
-            print('Unexpected server response format.')
+            logging.error('Unexpected server response format.')
+        return True, 'OK'
     elif parts[0] == 'FAILED':
+        error_message = ''
         try:
-            print('Sending message failed with error code {}: {}'.format(parts[1], parts[2]))
+            logging.error('Sending message failed with error code {}: {}'.format(parts[1], parts[2]))
+            error_message = parts[2]
         except IndexError:
-            print('Unexpected server response format.')
+            logging.error('Unexpected server response format.')
+        return False, error_message
     else:
-        print('Unexpected server response: {}'.format(resp.text))
-    return
+        error_message = 'Unexpected server response: {}'.format(resp.text)
+        logging.error(error_message)
+        return False, error_message
 
 
 def main(position=None, time=None, userfunc=None, output_file=None, send=None):
@@ -67,7 +73,7 @@ def main(position=None, time=None, userfunc=None, output_file=None, send=None):
         config.read(send)
         sendMessage(
                 config['device']['imei'], message,
-                config['rockblock']['username'], config['rockblock']['password'])
+                config['rockblock']['user'], config['rockblock']['password'])
     return
 
 

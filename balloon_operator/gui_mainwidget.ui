@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>371</width>
-    <height>969</height>
+    <height>1000</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -489,9 +489,16 @@
     </widget>
    </item>
    <item>
+    <widget class="QPushButton" name="button_live_operation">
+     <property name="text">
+      <string>Live operation</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QGroupBox" name="group_result">
      <property name="title">
-      <string>Landing</string>
+      <string>Estimated landing</string>
      </property>
      <layout class="QFormLayout" name="formLayout">
       <item row="0" column="0">
@@ -576,6 +583,7 @@
   <tabstop>edit_output_file</tabstop>
   <tabstop>button_output_file_dialog</tabstop>
   <tabstop>button_forecast</tabstop>
+  <tabstop>button_live_operation</tabstop>
  </tabstops>
  <resources/>
  <connections/>
