@@ -107,6 +107,7 @@ class MainWidget(QWidget):
         for fill_gas in filling.FillGas:
             self.ui.combo_fill_gas.addItem(filling.fill_gas_names[fill_gas], fill_gas)
         self.ui.edit_output_file.setText(os.path.join(tempfile.gettempdir(), 'trajectory.gpx'))
+        self.ui.edit_webpage_file.setText(os.path.join(tempfile.gettempdir(), 'trajectory.html'))
         self.balloon_parameter_list = np.zeros((3,0), dtype=[('weight', 'f8'), ('burst_diameter', 'f8'), ('drag_coefficient', 'f8')])
         self.balloon_parameter_file = None
         self.parachute_parameter_list = np.zeros((3,0), dtype=[('name', 'U25'), ('diameter', 'f8'), ('drag_coefficient', 'f8')])
@@ -126,6 +127,8 @@ class MainWidget(QWidget):
         self.ui.spin_asc_velocity.valueChanged.connect(self.onChangeBalloonParameter)
         self.ui.spin_desc_velocity.valueChanged.connect(self.onChangeBalloonParameter)
         self.ui.button_output_file_dialog.clicked.connect(self.onOutputFileSelector)
+        self.ui.check_webpage.stateChanged.connect(self.onChangeCheckWebpage)
+        self.ui.button_webpage_file_dialog.clicked.connect(self.onWebpageFileSelector)
         self.ui.button_forecast.clicked.connect(self.onForecast)
         self.ui.button_live_operation.clicked.connect(self.onLiveOperation)
 
@@ -290,7 +293,8 @@ class MainWidget(QWidget):
                 'launch_lat': self.ui.spin_launch_latitude.value(),
                 'launch_alt': self.ui.spin_launch_altitude.value(),
                 'launch_datetime': self.ui.dt_launch_datetime.dateTime().toPython(),
-                'output_file': self.ui.edit_output_file.text()
+                'output_file': self.ui.edit_output_file.text(),
+                'webpage_file': self.ui.edit_webpage_file.text() if self.ui.check_webpage.isChecked() else None
                 }
         if self.ui.check_cut.isChecked():
             parameters['top_altitude'] = np.minimum(self.ui.spin_cut_altitude.value(), self.balloon_performance['ascent_burst_height'])
@@ -336,6 +340,8 @@ class MainWidget(QWidget):
             trajectory_predictor.writeKml(track, output_file, waypoints=waypoints)
         else:
             trajectory_predictor.writeGpx(track, output_file, waypoints=waypoints, description=track.description)
+        if parameters['webpage_file']:
+            trajectory_predictor.createWebpage(track, waypoints, parameters['webpage_file'])
         return {'lon': track.segments[-1].points[-1].longitude,
                 'lat': track.segments[-1].points[-1].latitude,
                 'alt': track.segments[-1].points[-1].elevation,
@@ -415,6 +421,30 @@ class MainWidget(QWidget):
             if filetype == 'KML tracks (*.kml)' and os.path.splitext(output_file)[1].lower() != '.kml':
                 output_file += '.kml'
             self.ui.edit_output_file.setText(output_file)
+
+    @Slot()
+    def onChangeCheckWebpage(self, state):
+        """
+        Callback when checkbox whether to create a webpage is changed.
+        """
+        if state:
+            self.ui.edit_webpage_file.setEnabled(True)
+            self.ui.button_webpage_file_dialog.setEnabled(True)
+        else:
+            self.ui.edit_webpage_file.setEnabled(False)
+            self.ui.button_webpage_file_dialog.setEnabled(False)
+
+    @Slot()
+    def onWebpageFileSelector(self):
+        """
+        Callback when the button to select a webpage file name is clicked.
+        """
+        webpage_file, filetype = QFileDialog.getSaveFileName(self, 'Save webpage', os.path.dirname(self.ui.edit_webpage_file.text()), 'Webpages (*.html)')
+        if webpage_file:
+            fileext = os.path.splitext(webpage_file)[1].lower()
+            if fileext != '.html' and fileext != '.htm':
+                webpage_file += '.html'
+            self.ui.edit_webpage_file.setText(webpage_file)
 
     @Slot()
     def forecastComplete(self):
