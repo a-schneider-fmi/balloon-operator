@@ -26,6 +26,9 @@ import logging
 import gpxpy
 import gpxpy.gpx
 import geog
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 
 """ Worker thread classes =====================================================
@@ -532,6 +535,41 @@ class OperatorWidget(QWidget):
         self.timer.timeout.connect(self.queryMessages)
         self.threadpool = QThreadPool()
 
+        self.ui.layout_plots.addWidget(NavigationToolbar(self.ui.mpl_canvas, self))
+        axes = self.ui.mpl_canvas.figure.subplots(2, sharex=True)
+        self.axis_alt = axes[0]
+        self.axis_temp = axes[1]
+        color = 'tab:red'
+        self.axis_alt.set_ylabel('Altitude (km)', color=color)
+        self.axis_alt.tick_params(axis="y", colors=color)
+        self.line_alt, = self.axis_alt.plot([datetime.datetime.utcnow()], [0], color=color)
+        self.axis_alt.set_ylim(0, 30)
+        plt.setp(self.axis_alt.get_xticklabels(), visible=False) # make x tick labels invisible
+        self.axis_alt.grid(axis='both')
+        self.axis_press = self.axis_alt.twinx()
+        color = 'tab:blue'
+        self.axis_press.set_ylabel('Pressure (hPa)', color=color)
+        self.axis_press.tick_params(axis="y", colors=color)
+        self.line_press, = self.axis_press.plot([datetime.datetime.utcnow()], [0], color=color)
+        self.axis_press.set_ylim(0, 1100)
+        self.axis_temp.set_xlabel('Time')
+        color = 'tab:red'
+        self.axis_temp.set_ylabel('Temperature (°C)', color=color)
+        self.axis_temp.tick_params(axis="y", colors=color)
+        self.line_temp, = self.axis_temp.plot([datetime.datetime.utcnow()], [0], color=color)
+        self.axis_temp.set_ylim(0, 30)
+        self.axis_temp.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        self.axis_temp.grid(axis='both')
+        self.axis_battv = self.axis_temp.twinx()
+        color = 'tab:blue'
+        self.axis_battv.set_ylabel('Battery voltage (V)', color=color)
+        self.axis_battv.tick_params(axis="y", colors=color)
+        self.line_battv, = self.axis_battv.plot([datetime.datetime.utcnow()], [0], color=color)
+        self.axis_battv.set_ylim(0, 4)
+        plt.tight_layout()
+        self.ui.mpl_canvas.figure.subplots_adjust(hspace=.0) # remove vertical gap between subplots
+        self.ui.mpl_canvas.draw()
+
     stopLiveOperation = Signal()
 
     def closeEvent(self, event):
@@ -628,10 +666,47 @@ class OperatorWidget(QWidget):
             self.ui.label_cur_temperature_value.setText('{:.1f} °C'.format(data['TEMP']))
         else:
             self.ui.label_cur_temperature_value.setText('?? °C')
+        if 'HUMID' in data:
+            self.ui.label_cur_humidity_value.setText('{:.1f} %'.format(data['HUMID']))
+        else:
+            self.ui.label_cur_humidity_value.setText('?? %')
         if 'BATTV' in data:
             self.ui.label_cur_battery_value.setText('{:.2f} V'.format(data['BATTV']))
         else:
             self.ui.label_cur_battery_value.setText('?? V')
+
+    def appendTimeseries(self, data):
+        """
+        Adds standard data from a received IRIDIUM message.
+        """
+        if 'DATETIME' not in data or data['DATETIME'] is None:
+            return
+        self.timeseries['DATETIME'].append(data['DATETIME'])
+        for key in ['ALT', 'PRESS', 'TEMP', 'BATTV']:
+            self.timeseries[key].append(data[key] if key in data else np.nan)
+
+    def plotStandardData(self):
+        """
+        Updates the plot of the standard data from the tracker.
+        """
+        self.line_alt.set_data(np.array(self.timeseries['DATETIME']), np.array(self.timeseries['ALT'])/1000.)
+        self.axis_alt.set_xlim(np.array(self.timeseries['DATETIME'])[np.array([0,-1])])
+        alt_range = np.array([np.nanmin(self.timeseries['ALT'])/1000., np.nanmax(self.timeseries['ALT'])/1000.])
+        if np.isfinite(alt_range).all() and alt_range[0] != alt_range[1]:
+            self.axis_alt.set_ylim(alt_range)
+        self.line_press.set_data(self.timeseries['DATETIME'], self.timeseries['PRESS'])
+        press_range = np.array([np.nanmin(self.timeseries['PRESS']), np.nanmax(self.timeseries['PRESS'])])
+        if np.isfinite(press_range).all() and press_range[0] != press_range[1]:
+            self.axis_press.set_ylim(press_range)
+        self.line_temp.set_data(self.timeseries['DATETIME'], self.timeseries['TEMP'])
+        temp_range = np.array([np.nanmin(self.timeseries['TEMP']), np.nanmax(self.timeseries['TEMP'])])
+        if np.isfinite(temp_range).all() and temp_range[0] != temp_range[1]:
+            self.axis_temp.set_ylim(temp_range)
+        self.line_battv.set_data(self.timeseries['DATETIME'], self.timeseries['BATTV'])
+        battv_range = np.array([np.nanmin(self.timeseries['BATTV']), np.nanmax(self.timeseries['BATTV'])])
+        if np.isfinite(battv_range).all() and battv_range[0] != battv_range[1]:
+            self.axis_battv.set_ylim(battv_range)
+        self.ui.mpl_canvas.draw()
 
     def setLanding(self, longitude, latitude, altitude, flight_range):
         """
@@ -685,6 +760,7 @@ class OperatorWidget(QWidget):
                 time=parameters['launch_datetime'],
                 name='Launch')
         self.top_point = None
+        self.timeseries = {'DATETIME': [], 'PRESS': [], 'ALT': [], 'TEMP': [], 'BATTV': []}
         self.ui.label_ascent_status_value.setText('ascending')
         if self.comm_settings is None:
             self.onLoadConfig()
@@ -727,10 +803,12 @@ class OperatorWidget(QWidget):
                     is_invalid[ind_msg] = True
                 else:
                     self.segment_tracked.points.append(sbd_receiver.message2trackpoint(msg))
+                    self.appendTimeseries(msg)
             print('Valid messages: {}'.format(np.array(messages)[~is_invalid])) # DEBUG
             if not all(is_invalid):
                 last_msg = np.array(messages)[~is_invalid][-1]
                 self.setStandardData(last_msg)
+                self.plotStandardData()
                 worker = Worker(self.doLiveForecast, last_msg, error_callback=self.showError)
                 worker.signals.finished.connect(self.onWorkerFinished)
                 self.threadpool.start(worker)

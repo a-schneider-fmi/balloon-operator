@@ -22,6 +22,7 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 * [paramiko](https://github.com/paramiko/paramiko) for uploading data with scp/sftp
 * [folium](https://github.com/python-visualization/folium) for creating web pages
 * [pyside6](https://doc.qt.io/qtforpython/) for the graphical user interface
+* [matplotlib](https://www.matplotlib.org/) for live plots
 Usually, these can be installed with `pip`:
 ```
 pip install numpy scipy requests pygrib python-magic geog gpxpy simplekml
@@ -44,6 +45,7 @@ and if needed
 conda install folium
 conda install paramiko
 pip install pyside6
+conda install matplotlib
 ```
 The package `srtm-python` is not available in pypi and has to be cloned from github.
 
@@ -51,6 +53,7 @@ On Linux, however, it is advisable to install through the system's packaging
 system. For example on Debian-based distributions:
 ```
 sudo apt install python3-numpy python3-scipy python3-requests python3-grib python3-magic python3-gpxpy
+sudo apt install python3-matplotlib
 ```
 Some Python packages are not available through the Linux packaging system.
 These can either be installed with pip or by cloning the repositories and setting

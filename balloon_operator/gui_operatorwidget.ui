@@ -6,306 +6,344 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>355</width>
-    <height>709</height>
+    <width>931</width>
+    <height>711</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Balloon Live Operator</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
-   <item row="2" column="0">
-    <widget class="QGroupBox" name="group_landing_point">
+   <item row="0" column="0">
+    <layout class="QVBoxLayout" name="layout_left">
+     <item>
+      <widget class="QGroupBox" name="group_config">
+       <property name="title">
+        <string>Configuration</string>
+       </property>
+       <layout class="QFormLayout" name="layout_config">
+        <item row="1" column="0">
+         <widget class="QLabel" name="label_receive_imei">
+          <property name="text">
+           <string>Receive from</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QComboBox" name="combo_receive_imei"/>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="label_query_time">
+          <property name="text">
+           <string>Query every</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <layout class="QHBoxLayout" name="layout_query">
+          <item>
+           <widget class="QDoubleSpinBox" name="spin_query_time">
+            <property name="decimals">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <double>100.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>5.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_query_min">
+            <property name="text">
+             <string>min</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="button_query_now">
+            <property name="text">
+             <string>Query now</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="3" column="0" colspan="2">
+         <widget class="QPushButton" name="button_load_config">
+          <property name="text">
+           <string>Load configuration</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="group_cur_pos">
+       <property name="title">
+        <string>Current position and health</string>
+       </property>
+       <layout class="QFormLayout" name="layout_cur_pos">
+        <item row="0" column="0">
+         <widget class="QLabel" name="label_cur_datetime">
+          <property name="text">
+           <string>Time</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QLabel" name="label_cur_datetime_value">
+          <property name="text">
+           <string>??.??.???? ??:??:??</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="label_cur_longitude">
+          <property name="text">
+           <string>Longitude</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QLabel" name="label_cur_longitude_value">
+          <property name="text">
+           <string>??°</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="label_cur_latitude">
+          <property name="text">
+           <string>Latitude</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QLabel" name="label_cur_latitude_value">
+          <property name="text">
+           <string>??°</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="label_cur_altitude">
+          <property name="text">
+           <string>Altitude</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QLabel" name="label_cur_altitude_value">
+          <property name="text">
+           <string>?? m</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0">
+         <widget class="QLabel" name="label_cur_pressure">
+          <property name="text">
+           <string>Pressure</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="QLabel" name="label_cur_pressure_value">
+          <property name="text">
+           <string>?? hPa</string>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="0">
+         <widget class="QLabel" name="label_cur_battery">
+          <property name="text">
+           <string>Battery</string>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="1">
+         <widget class="QLabel" name="label_cur_battery_value">
+          <property name="text">
+           <string>?? V</string>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="0">
+         <widget class="QLabel" name="label_cur_temperature">
+          <property name="text">
+           <string>Temperature</string>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="1">
+         <widget class="QLabel" name="label_cur_temperature_value">
+          <property name="text">
+           <string>?? °C</string>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="0">
+         <widget class="QLabel" name="label_cur_humidity">
+          <property name="text">
+           <string>Rel. humidity</string>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="1">
+         <widget class="QLabel" name="label_cur_humidity_value">
+          <property name="text">
+           <string>?? %</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="group_landing_point">
+       <property name="title">
+        <string>Flight forecast</string>
+       </property>
+       <layout class="QFormLayout" name="layout_landing">
+        <item row="1" column="0">
+         <widget class="QLabel" name="label_landing_longitude">
+          <property name="text">
+           <string>Landing longitude</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="label_landing_latitude">
+          <property name="text">
+           <string>Landing latitude</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0">
+         <widget class="QLabel" name="label_range">
+          <property name="text">
+           <string>Range</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="label_landing_altitude">
+          <property name="text">
+           <string>Landing altitude</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QLabel" name="label_landing_longitude_value">
+          <property name="text">
+           <string>??</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QLabel" name="label_landing_latitude_value">
+          <property name="text">
+           <string>??</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QLabel" name="label_landing_altitude_value">
+          <property name="text">
+           <string>??</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="QLabel" name="label_range_value">
+          <property name="text">
+           <string>??</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QLabel" name="label_ascent_status">
+          <property name="text">
+           <string>Detected status</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QLabel" name="label_ascent_status_value">
+          <property name="text">
+           <string/>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="group_actions">
+       <property name="title">
+        <string>Actions</string>
+       </property>
+       <layout class="QGridLayout" name="layout_actions">
+        <item row="4" column="0">
+         <widget class="QPushButton" name="button_send">
+          <property name="text">
+           <string>Send message</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QCheckBox" name="check_cutter1">
+          <property name="text">
+           <string>Activate cutter 1</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QCheckBox" name="check_cutter2">
+          <property name="text">
+           <string>Activate cutter 2</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QComboBox" name="combo_iridium"/>
+        </item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item row="0" column="1">
+    <widget class="QGroupBox" name="group_plots">
      <property name="title">
-      <string>Flight forecast</string>
+      <string>Plots</string>
      </property>
-     <layout class="QFormLayout" name="formLayout">
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_landing_longitude">
-        <property name="text">
-         <string>Landing longitude</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="label_landing_latitude">
-        <property name="text">
-         <string>Landing latitude</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0">
-       <widget class="QLabel" name="label_range">
-        <property name="text">
-         <string>Range</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="label_landing_altitude">
-        <property name="text">
-         <string>Landing altitude</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QLabel" name="label_landing_longitude_value">
-        <property name="text">
-         <string>??</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QLabel" name="label_landing_latitude_value">
-        <property name="text">
-         <string>??</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <widget class="QLabel" name="label_landing_altitude_value">
-        <property name="text">
-         <string>??</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1">
-       <widget class="QLabel" name="label_range_value">
-        <property name="text">
-         <string>??</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="label_ascent_status">
-        <property name="text">
-         <string>Detected status</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QLabel" name="label_ascent_status_value">
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
+     <layout class="QVBoxLayout" name="layout_plots">
+      <item>
+       <widget class="GuiFigureCanvas" name="mpl_canvas" native="true"/>
       </item>
      </layout>
     </widget>
    </item>
-   <item row="1" column="0">
-    <widget class="QGroupBox" name="group_cur_pos">
-     <property name="title">
-      <string>Current position and health</string>
-     </property>
-     <layout class="QFormLayout" name="formLayout_3">
-      <item row="0" column="0">
-       <widget class="QLabel" name="label_cur_datetime">
-        <property name="text">
-         <string>Time</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QLabel" name="label_cur_datetime_value">
-        <property name="text">
-         <string>??.??.???? ??:??:??</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_cur_longitude">
-        <property name="text">
-         <string>Longitude</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QLabel" name="label_cur_longitude_value">
-        <property name="text">
-         <string>??°</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="label_cur_latitude">
-        <property name="text">
-         <string>Latitude</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QLabel" name="label_cur_latitude_value">
-        <property name="text">
-         <string>??°</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="label_cur_altitude">
-        <property name="text">
-         <string>Altitude</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <widget class="QLabel" name="label_cur_altitude_value">
-        <property name="text">
-         <string>?? m</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0">
-       <widget class="QLabel" name="label_cur_pressure">
-        <property name="text">
-         <string>Pressure</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1">
-       <widget class="QLabel" name="label_cur_pressure_value">
-        <property name="text">
-         <string>?? hPa</string>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="0">
-       <widget class="QLabel" name="label_cur_battery">
-        <property name="text">
-         <string>Battery</string>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="1">
-       <widget class="QLabel" name="label_cur_battery_value">
-        <property name="text">
-         <string>?? V</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0">
-       <widget class="QLabel" name="label_cur_temperature">
-        <property name="text">
-         <string>Temperature</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="1">
-       <widget class="QLabel" name="label_cur_temperature_value">
-        <property name="text">
-         <string>?? °C</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="4" column="0">
+   <item row="1" column="0" colspan="2">
     <widget class="QLabel" name="label_status">
      <property name="text">
       <string>Idle</string>
      </property>
     </widget>
    </item>
-   <item row="3" column="0">
-    <widget class="QGroupBox" name="group_actions">
-     <property name="title">
-      <string>Actions</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_5">
-      <item row="4" column="0">
-       <widget class="QPushButton" name="button_send">
-        <property name="text">
-         <string>Send message</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QCheckBox" name="check_cutter1">
-        <property name="text">
-         <string>Activate cutter 1</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QCheckBox" name="check_cutter2">
-        <property name="text">
-         <string>Activate cutter 2</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QComboBox" name="combo_iridium"/>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="0" column="0">
-    <widget class="QGroupBox" name="group_config">
-     <property name="title">
-      <string>Configuration</string>
-     </property>
-     <layout class="QFormLayout" name="formLayout_2">
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_receive_imei">
-        <property name="text">
-         <string>Receive from</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QComboBox" name="combo_receive_imei"/>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="label_query_time">
-        <property name="text">
-         <string>Query every</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <layout class="QHBoxLayout" name="horizontalLayout">
-        <item>
-         <widget class="QDoubleSpinBox" name="spin_query_time">
-          <property name="decimals">
-           <number>1</number>
-          </property>
-          <property name="maximum">
-           <double>100.000000000000000</double>
-          </property>
-          <property name="value">
-           <double>5.000000000000000</double>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLabel" name="label_query_min">
-          <property name="text">
-           <string>min</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="button_query_now">
-          <property name="text">
-           <string>Query now</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item row="3" column="0" colspan="2">
-       <widget class="QPushButton" name="button_load_config">
-        <property name="text">
-         <string>Load configuration</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>GuiFigureCanvas</class>
+   <extends>QWidget</extends>
+   <header>gui_figure_canvas</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <tabstops>
   <tabstop>combo_receive_imei</tabstop>
   <tabstop>spin_query_time</tabstop>
