@@ -71,9 +71,13 @@ def main(position=None, time=None, userfunc=None, output_file=None, send=None):
     if send:
         config = configparser.ConfigParser()
         config.read(send)
-        sendMessage(
+        status, error_message = sendMessage(
                 config['device']['imei'], message,
                 config['rockblock']['user'], config['rockblock']['password'])
+        if status:
+            print('Message sent.')
+        else:
+            print('Error sending message: {}'.format(error_message))
     return
 
 
