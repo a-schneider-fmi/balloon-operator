@@ -22,6 +22,7 @@ import os.path
 import argparse
 import logging
 import tempfile
+from copy import deepcopy
 from balloon_operator import filling, parachute, download_model_data, constants, sbd_receiver, comm, utils
 
 
@@ -544,6 +545,18 @@ def liveForecast(
                 track = gpxpy.gpx.GPXTrack()
                 track.segments.append(segment_tracked)
                 if is_ascending:
+                    # Track if balloon is cut now.
+                    track_cut = deepcopy(track)
+                    segment_cut, lon_cut, lat_cut = predictDescent(
+                        cur_datetime, cur_lon, cur_lat, cur_alt, descent_velocity, 
+                        parachute_parameters, payload_weight, payload_area, model_data, timestep)
+                    track_cut.segments.append(segment_cut)
+                    waypoints_cut = deepcopy(waypoints)
+                    waypoints_cut.append(gpxpy.gpx.GPXWaypoint(
+                        lat_cut, lon_cut,
+                        elevation=segment_cut.points[-1].elevation,
+                        time=segment_cut.points[-1].time, name='Landing (cut)'))
+                    # Track if flight continues as planned.
                     segment_ascent, cur_lon, cur_lat, cur_datetime = predictAscent(cur_datetime, cur_lon, cur_lat, cur_alt, top_height, ascent_velocity, model_data, timestep)
                     track.segments.append(segment_ascent)
                     waypoints.append(gpxpy.gpx.GPXWaypoint(
@@ -551,6 +564,7 @@ def liveForecast(
                 else:
                     waypoints.append(gpxpy.gpx.GPXWaypoint(
                             top_lat, top_lon, elevation=top_height, time=top_datetime, name='Ceiling'))
+                    track_cut = None
                 segment_descent, landing_lon, landing_lat = predictDescent(
                         cur_datetime, cur_lon, cur_lat, top_height if is_ascending else cur_alt, descent_velocity, 
                         parachute_parameters, payload_weight, payload_area, model_data, timestep)
@@ -561,10 +575,16 @@ def liveForecast(
                         time=segment_descent.points[-1].time, name='Landing'))
                 if kml_output:
                     writeKml(track, os.path.join(output_dir, output_file), waypoints=waypoints, networklink=networklink, refreshinterval=refreshinterval, upload=upload)
+                    if track_cut:
+                        writeKml(track_cut, os.path.join(output_dir, os.path.splitext(output_file)[0]+'-cut.kml'), waypoints=waypoints_cut, upload=upload)
                 else:
                     writeGpx(track, os.path.join(output_dir, output_file), waypoints=waypoints, upload=upload)
+                    if track_cut:
+                        writeGpx(track_cut, os.path.join(output_dir, os.path.splitext(output_file)[0]+'-cut.gpx'), waypoints=waypoints_cut, upload=upload)
                 if webpage:
-                    createWebpage(track, waypoints, webpage, upload=upload)
+                    if track_cut:
+                        waypoints.append(waypoints_cut[-1]) # Add landing point for cutting balloon now.
+                    createWebpage(track, waypoints, webpage, upload=upload, track_cut=track_cut)
         except Exception as err:
             logging.critical('Exception occurred: {}'.format(err))
         time.sleep(poll_time)
@@ -752,7 +772,7 @@ def gpxWaypointToFolium(waypoint):
         icon = folium.Icon(color='green', icon='play')
     elif waypoint.name.lower() in ['burst','ceiling']:
         icon = folium.Icon(color='blue', icon='certificate')
-    elif waypoint.name.lower()=='landing':
+    elif waypoint.name.lower().startswith('landing'):
         icon = folium.Icon(color='orange', icon='stop')
     elif waypoint.name.lower()=='current':
         icon = folium.Icon(color='red', icon='record')
@@ -767,7 +787,7 @@ def gpxWaypointToFolium(waypoint):
             icon=icon)
 
 
-def createWebpage(track, waypoints, output_file, upload=None, hourly=None):
+def createWebpage(track, waypoints, output_file, upload=None, hourly=None, track_cut=None):
     """
     Create an interactive webpage for the track, using the folium library.
 
@@ -824,9 +844,12 @@ def createWebpage(track, waypoints, output_file, upload=None, hourly=None):
     else:
         for segment in track.segments:
             gpxTrackToFolium(segment).add_to(mymap)
+        if track_cut:
+            gpxTrackToFolium(track_cut).add_to(mymap)
         for waypoint in waypoints:
             gpxWaypointToFolium(waypoint).add_to(mymap)
     # Export result.
+    mymap.fit_bounds(mymap.get_bounds())
     if upload:
         try:
             comm.uploadFile(upload, os.path.basename(output_file), mymap.get_root().render())
@@ -1006,7 +1029,10 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--output', required=False, default=None, help='Output file name')
     parser.add_argument('--log', required=False, default='INFO', help='Log level')
     args = parser.parse_args()
-    launch_datetime = datetime.datetime.fromisoformat(args.launchtime)
+    if args.launchtime == 'now':
+        launch_datetime = datetime.datetime.utcnow()
+    else:
+        launch_datetime = datetime.datetime.fromisoformat(args.launchtime)
     if args.position is not None:
         launch_pos = np.array(args.position.split(',')).astype(float)
     else:

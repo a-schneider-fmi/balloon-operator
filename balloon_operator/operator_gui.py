@@ -26,6 +26,7 @@ import logging
 import gpxpy
 import gpxpy.gpx
 import geog
+from copy import deepcopy
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -531,7 +532,7 @@ class OperatorWidget(QWidget):
         self.comm_settings = None
         self.imap = None
         self.timer = QTimer(self)
-        self.timer.setInterval(300000) # default time of 5 minutes
+        self.timer.setInterval(60000) # default time of 1 minute
         self.timer.timeout.connect(self.queryMessages)
         self.threadpool = QThreadPool()
 
@@ -841,6 +842,26 @@ class OperatorWidget(QWidget):
         waypoints = [self.launch_point]
         if self.top_point is None:
             waypoints.append(sbd_receiver.message2waypoint(msg, name='Current'))
+            # Track if balloon is cut now.
+            track_cut = deepcopy(track)
+            segment_cut, lon_cut, lat_cut = trajectory_predictor.predictDescent(
+                    self.segment_tracked.points[-1].time,
+                    self.segment_tracked.points[-1].longitude,
+                    self.segment_tracked.points[-1].latitude,
+                    self.segment_tracked.points[-1].elevation,
+                    self.flight_parameters['descent_velocity'],
+                    self.flight_parameters['parachute_parameters'],
+                    self.flight_parameters['payload_weight'],
+                    self.flight_parameters['payload_area'],
+                    self.model_data,
+                    self.timestep)
+            track_cut.segments.append(segment_cut)
+            waypoints_cut = deepcopy(waypoints)
+            waypoints_cut.append(gpxpy.gpx.GPXWaypoint(
+                lat_cut, lon_cut,
+                elevation=segment_cut.points[-1].elevation,
+                time=segment_cut.points[-1].time, name='Landing (cut)'))
+            # Track if flight continues as planned.
             segment_ascent, cur_lon, cur_lat, cur_datetime = trajectory_predictor.predictAscent(
                     self.segment_tracked.points[-1].time,
                     self.segment_tracked.points[-1].longitude,
@@ -860,6 +881,7 @@ class OperatorWidget(QWidget):
             cur_lon = self.segment_tracked.points[-1].longitude
             cur_lat = self.segment_tracked.points[-1].latitude
             cur_alt = self.segment_tracked.points[-1].elevation
+            track_cut = None
         segment_descent, landing_lon, landing_lat = trajectory_predictor.predictDescent(
                 cur_datetime, cur_lon, cur_lat,
                 self.flight_parameters['top_altitude'] if self.top_point is None else cur_alt,
@@ -886,17 +908,32 @@ class OperatorWidget(QWidget):
                     networklink=self.comm_settings['webpage']['networklink'],
                     refreshinterval=self.comm_settings['webpage']['refreshinterval'],
                     upload=self.comm_settings['upload'])
+            if track_cut:
+                trajectory_predictor.writeKml(
+                        track_cut,
+                        os.path.join(self.comm_settings['output']['directory'], os.path.splitext(self.comm_settings['output']['filename'])[0]+'-cut.kml'),
+                        waypoints=waypoints_cut,
+                        upload=self.comm_settings['upload'])
         else:
             trajectory_predictor.writeGpx(
                     track,
                     os.path.join(self.comm_settings['output']['directory'], self.comm_settings['output']['filename']),
                     waypoints=waypoints,
                     upload=self.comm_settings['upload'])
+            if track_cut:
+                trajectory_predictor.writeGpx(
+                        track_cut,
+                        os.path.join(self.comm_settings['output']['directory'], os.path.splitext(self.comm_settings['output']['filename'])[0]+'-cut.gpx'),
+                        waypoints=waypoints_cut,
+                        upload=self.comm_settings['upload'])
         if self.comm_settings['webpage']['webpage']:
+            if track_cut:
+                waypoints.append(waypoints_cut[-1]) # Add landing point if balloon is cut now.
             trajectory_predictor.createWebpage(track,
                           waypoints,
                           self.comm_settings['webpage']['webpage'],
-                          upload=self.comm_settings['upload'])
+                          upload=self.comm_settings['upload'],
+                          track_cut=track_cut)
 
     def sendIridiumMessage(self, imei, msg, username, password, progress_callback=None, error_callback=None):
         """
