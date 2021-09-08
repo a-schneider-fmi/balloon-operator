@@ -9,8 +9,9 @@ Created on Wed Jul 21 18:34:53 2021
 
 import sys
 from PySide6.QtWidgets import QApplication, QWidget, QFileDialog, QMessageBox
-from PySide6.QtCore import Slot, Signal, QObject, QRunnable, QThreadPool, QTimer
+from PySide6.QtCore import Slot, Signal, QObject, QRunnable, QThreadPool, QTimer, QFile
 from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtUiTools import QUiLoader
 from gui_mainwidget import Ui_MainWidget
 from gui_operatorwidget import Ui_OperatorWidget
 import gui_icons
@@ -27,6 +28,8 @@ import gpxpy
 import gpxpy.gpx
 import geog
 from copy import deepcopy
+import glob
+import importlib.util
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -525,6 +528,7 @@ class OperatorWidget(QWidget):
         self.ui.spin_query_time.valueChanged.connect(self.onChangeQueryTime)
         self.ui.button_query_now.clicked.connect(self.onQueryNow)
         self.ui.button_send.clicked.connect(self.onSendIridium)
+        self.ui.combo_payload_type.currentIndexChanged.connect(self.onComboPayloadChanged)
         self.flight_parameters = {}
         self.timestep = 10
         self.model_path = tempfile.gettempdir()
@@ -536,6 +540,7 @@ class OperatorWidget(QWidget):
         self.timer.timeout.connect(self.queryMessages)
         self.threadpool = QThreadPool()
 
+        # Set up plots.
         self.ui.layout_plots.addWidget(NavigationToolbar(self.ui.mpl_canvas, self))
         axes = self.ui.mpl_canvas.figure.subplots(2, sharex=True)
         self.axis_alt = axes[0]
@@ -570,6 +575,15 @@ class OperatorWidget(QWidget):
         plt.tight_layout()
         self.ui.mpl_canvas.figure.subplots_adjust(hspace=.0) # remove vertical gap between subplots
         self.ui.mpl_canvas.draw()
+
+        # Fill combo box with special payloads.
+        self.ui.combo_payload_type.addItem('Generic', None)
+        widget_files = sorted(glob.glob(os.path.join(os.path.dirname(__file__),'gui_payloadwidget_*.ui')))
+        for widget_file in widget_files:
+            name = os.path.splitext(os.path.basename(widget_file))[0][18:].title()
+            self.ui.combo_payload_type.addItem(name, widget_file)
+        self.ui.combo_payload_type.activated.connect(self.onComboPayloadChanged)
+        self.payloadwidget = None
 
     stopLiveOperation = Signal()
 
@@ -675,6 +689,33 @@ class OperatorWidget(QWidget):
             self.ui.label_cur_battery_value.setText('{:.2f} V'.format(data['BATTV']))
         else:
             self.ui.label_cur_battery_value.setText('?? V')
+        if 'USERVAL1' in data:
+            self.ui.label_cur_cutter1_value.setText('fired' if data['USERVAL1'] & 1 else 'not fired')
+            self.ui.label_cur_cutter2_value.setText('fired' if data['USERVAL1'] & 2 else 'not fired')
+            self.ui.label_cur_heating_value.setText('on' if data['USERVAL1'] & 4 else 'off')
+        else:
+            self.ui.label_cur_cutter1_value.setText('??')
+            self.ui.label_cur_cutter2_value.setText('??')
+            self.ui.label_cur_heating_value.setText('??')
+
+    def setAdvancedData(self, data):
+        """
+        Sets advanced (per-payload) data from a received IRIDIUM message.
+        """
+        payload_widget_file = self.ui.combo_payload_type.currentData()
+        if payload_widget_file is not None:
+            try:
+                dirname = os.path.dirname(payload_widget_file)
+                module_name = os.path.splitext(os.path.basename(payload_widget_file))[0][4:]
+                filename = os.path.join(dirname, module_name+'.py')
+                print('Loading module: {}'.format(module_name)) # DEBUG
+                spec = importlib.util.spec_from_file_location(module_name, filename)
+                widget_code = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(widget_code)
+            except Exception as err:
+                print('Exception while loading payload module {}: {}'.format(module_name, err))
+                return
+            widget_code.setPayloadData(self.payloadwidget, data)
 
     def appendTimeseries(self, data):
         """
@@ -809,6 +850,7 @@ class OperatorWidget(QWidget):
             if not all(is_invalid):
                 last_msg = np.array(messages)[~is_invalid][-1]
                 self.setStandardData(last_msg)
+                self.setAdvancedData(last_msg)
                 self.plotStandardData()
                 worker = Worker(self.doLiveForecast, last_msg, error_callback=self.showError)
                 worker.signals.finished.connect(self.onWorkerFinished)
@@ -987,6 +1029,26 @@ class OperatorWidget(QWidget):
         self.ui.label_status.setText('Sending message ...')
         worker = Worker(self.sendIridiumMessage, imei, msg, self.comm_settings['rockblock']['user'], self.comm_settings['rockblock']['password'], error_callback=self.showError)
         self.threadpool.start(worker)
+
+    @Slot()
+    def onComboPayloadChanged(self, value):
+        print('onComboPayloadChanged', value) # DEBUG
+        if self.ui.layout_advanced_payload_status.itemAt(1): print(self.ui.layout_advanced_payload_status.itemAt(1).widget()) # DEBUG
+        if self.ui.layout_advanced_payload_status.count() > 1 and self.payloadwidget:
+            self.ui.layout_advanced_payload_status.removeWidget(self.payloadwidget)
+            self.payloadwidget.setParent(None)
+            self.payloadwidget = None
+        filename = self.ui.combo_payload_type.currentData()
+        if filename is not None:
+            ui_file = QFile(filename)
+            if not ui_file.open(QFile.ReadOnly):
+                QMessageBox.critical(self, 'Internal error', f'Cannot open {filename}: {ui_file.errorString()}')
+                return
+            loader = QUiLoader()
+            self.payloadwidget = loader.load(ui_file)
+            ui_file.close()
+            self.payloadwidget.show()
+            self.ui.layout_advanced_payload_status.addWidget(self.payloadwidget)
 
     @Slot()
     def onWorkerFinished(self):

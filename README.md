@@ -78,6 +78,23 @@ Data can be pre-loaded with command-line arguments:
 * `-b balloon_param.ini` (long name `--balloon-param`): balloon parameter file (default `totex_balloon_parameters.tsv`)
 * `--parachute-param parachute_param.ini`: parachute parameter file (default `parachute_parameters.tsv`)
 
+The main window supports balloon performance computations and trajectory forecasts.
+
+A second window for live operations can be opened with a button. The payload
+status from messages is shown, a new trajectory estimation is computed each time
+a new message arrives, and messages can be sent to the payload, e.g. to trigger
+cutters.
+
+Support for displaying custom payload-specific data exists. To this end, a
+widget named `gui_payloadwidget_name.ui` and a matching Python module
+`payloadwidget_name.py` are needed, where `name` has to be replaced with the
+actual payload name. The Python module needs to have a method
+`setPayloadData(payload_widget, data)`
+This method will be called by `OperatorWidget` when a new message arrives with
+the widget instance from QUiLoader as first parameter and the message as second
+parameter. See `gui_payloadwidget_wifvos.ui` and `payloadwidget_wifvos.py` for
+an example.
+
 
 ## Command-line tools
 

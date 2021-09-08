@@ -134,7 +134,7 @@ FIELD_TYPE = {
         TrackerMessageFields.USERVAL1: np.dtype('uint8'),
         TrackerMessageFields.USERVAL2: np.dtype('uint8'),
         TrackerMessageFields.USERVAL3: np.dtype('uint16'),
-        TrackerMessageFields.USERVAL4: np.dtype('uint16'),
+        TrackerMessageFields.USERVAL4: np.dtype('int16'),
         TrackerMessageFields.USERVAL5: np.dtype('uint32'),
         TrackerMessageFields.USERVAL6: np.dtype('uint32'),
         TrackerMessageFields.USERVAL7: np.dtype('float32'),
