@@ -32,6 +32,7 @@ class TrackerMessageFields(Enum):
     STX       = 0x02
     ETX       = 0x03
     SWVER     = 0x04
+    BATTC     = 0x07
     SOURCE    = 0x08
     BATTV     = 0x09
     PRESS     = 0x0a
@@ -109,6 +110,7 @@ FIELD_TYPE = {
         TrackerMessageFields.STX: 0,
         TrackerMessageFields.ETX: 0,
         TrackerMessageFields.SWVER: np.dtype('uint8'),
+        TrackerMessageFields.BATTC: np.dtype('uint16'),
         TrackerMessageFields.SOURCE: np.dtype('uint32'),
         TrackerMessageFields.BATTV: np.dtype('uint16'),
         TrackerMessageFields.PRESS: np.dtype('uint16'),
@@ -182,6 +184,7 @@ FIELD_TYPE = {
 Conversion factors for data fields according to documentation.
 """
 CONVERSION_FACTOR = {
+        TrackerMessageFields.BATTC: 1e-3,
         TrackerMessageFields.BATTV: 1e-2,
         TrackerMessageFields.TEMP: 1e-2,
         TrackerMessageFields.HUMID: 1e-2,
