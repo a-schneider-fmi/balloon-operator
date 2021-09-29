@@ -15,7 +15,7 @@ from PySide6.QtUiTools import QUiLoader
 from gui_mainwidget import Ui_MainWidget
 from gui_operatorwidget import Ui_OperatorWidget
 import gui_icons
-from balloon_operator import filling, parachute, trajectory_predictor, download_model_data, sbd_receiver, sbd_creator
+from balloon_operator import filling, parachute, trajectory_predictor, download_model_data, sbd_receiver, sbd_creator, utils
 import configparser
 import datetime
 import argparse
@@ -123,6 +123,7 @@ class MainWidget(QWidget):
         self.timestep = 10
         self.model_path = tempfile.gettempdir()
 
+        self.ui.button_now.clicked.connect(self.launchtimeNow)
         self.ui.button_load_payload.clicked.connect(self.onLoadPayload)
         self.ui.button_save_payload.clicked.connect(self.onSavePayload)
         self.ui.check_descent_balloon.stateChanged.connect(self.onChangeCheckDescentBalloon)
@@ -201,6 +202,7 @@ class MainWidget(QWidget):
             if 'cut_altitude' in config['payload']:
                 self.ui.check_cut.setChecked(True)
                 self.ui.spin_cut_altitude.setEnabled(True)
+                self.ui.combo_cut_altitude_unit.setCurrentIndex(0)
         except KeyError:
             QMessageBox.warning(self, 'Loading payload data', 'The file misses essential information.')
         self.blockSignals(False)
@@ -233,6 +235,12 @@ class MainWidget(QWidget):
                 'parachute': self.parachute_parameter_file}
         with open(config_file, 'w') as fd:
             config.write(fd)
+
+    def launchtimeNow(self):
+        """
+        Set launch datetime to now.
+        """
+        self.ui.dt_launch_datetime.setDateTime(datetime.datetime.utcnow())
 
     def computeBalloonPerformance(self):
         """
@@ -304,7 +312,11 @@ class MainWidget(QWidget):
                 'webpage_file': self.ui.edit_webpage_file.text() if self.ui.check_webpage.isChecked() else None
                 }
         if self.ui.check_cut.isChecked():
-            parameters['top_altitude'] = np.minimum(self.ui.spin_cut_altitude.value(), self.balloon_performance['ascent_burst_height'])
+            if self.ui.combo_cut_altitude_unit.currentText() == 'hPa':
+                parameters['top_altitude'] = utils.press2alt(self.ui.spin_cut_altitude.value()*100., p0=101325.) # TODO: use real sea-level pressure, or take altitude from model data
+            else:
+                parameters['top_altitude'] = self.ui.spin_cut_altitude.value()
+            parameters['top_altitude'] = np.minimum(parameters['top_altitude'], self.balloon_performance['ascent_burst_height'])
         else:
             if 'ascent_burst_height' in self.balloon_performance:
                 parameters['top_altitude'] = self.balloon_performance['ascent_burst_height']
@@ -378,7 +390,7 @@ class MainWidget(QWidget):
         """
         Callback when clicking the load payload button.
         """
-        filename = QFileDialog.getOpenFileName(self, 'Open payload information', None, 'Configuration files (*.ini);;All files (*)')
+        filename, filetype = QFileDialog.getOpenFileName(self, 'Open payload information', None, 'Configuration files (*.ini);;All files (*)')
         if filename:
             self.loadPayloadIni(filename)
 
@@ -408,6 +420,7 @@ class MainWidget(QWidget):
         Callback when the checkbox to use a cutter is changed.
         """
         self.ui.spin_cut_altitude.setEnabled(new_state)
+        self.ui.combo_cut_altitude_unit.setEnabled(new_state)
 
     @Slot()
     def onChangeBalloonParameter(self, value):
@@ -995,7 +1008,7 @@ class OperatorWidget(QWidget):
         """
         Callback for load config button.
         """
-        filename = QFileDialog.getOpenFileName(self, 'Open communication settings', None, 'Configuration files (*.ini);;All files (*)')
+        filename, filetype = QFileDialog.getOpenFileName(self, 'Open communication settings', None, 'Configuration files (*.ini);;All files (*)')
         if filename:
             self.loadConfig(filename)
 

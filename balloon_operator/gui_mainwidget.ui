@@ -124,6 +124,13 @@
       <item row="3" column="1">
        <widget class="QDateTimeEdit" name="dt_launch_datetime"/>
       </item>
+      <item row="3" column="2">
+       <widget class="QPushButton" name="button_now">
+        <property name="text">
+         <string>Now</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -163,13 +170,6 @@
         </property>
         <property name="singleStep">
          <double>0.100000000000000</double>
-        </property>
-       </widget>
-      </item>
-      <item row="9" column="2">
-       <widget class="QLabel" name="label_cut_altitude_unit">
-        <property name="text">
-         <string>m</string>
         </property>
        </widget>
       </item>
@@ -366,6 +366,23 @@
         <property name="text">
          <string>Descent balloon</string>
         </property>
+       </widget>
+      </item>
+      <item row="9" column="2">
+       <widget class="QComboBox" name="combo_cut_altitude_unit">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <item>
+         <property name="text">
+          <string>m</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>hPa</string>
+         </property>
+        </item>
        </widget>
       </item>
      </layout>
