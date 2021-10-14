@@ -275,7 +275,8 @@ def predictAscent(launch_datetime, launch_lon, launch_lat, launch_altitude,
 
 
 def predictDescent(top_datetime, top_lon, top_lat, top_height, descent_velocity, 
-                   parachute_parameters, payload_weight, payload_area, model_data, timestep):
+                   parachute_parameters, payload_weight, payload_area, model_data, timestep,
+                   initial_velocity=0.):
     """
     Predict trajectory for balloon descent.
 
@@ -289,6 +290,7 @@ def predictDescent(top_datetime, top_lon, top_lat, top_height, descent_velocity,
     @param payload_area payload area in m^2
     @param model_data model data
     @param timestep time step in s
+    @param initial_velocity initial velocity for descent on parachute in m/s
 
     @return segment_descent trajectory as gpxpy.gpx.GPXTrackSegment object
     @return landing_lon landing longitude in degrees
@@ -298,7 +300,7 @@ def predictDescent(top_datetime, top_lon, top_lat, top_height, descent_velocity,
         assert(descent_velocity > 0)
         datetime_descent, alt_descent = equidistantAltitudeGrid(top_datetime, top_height, 0, -descent_velocity, timestep)
     else:
-        time_descent, alt_descent, velocity_descent = parachute.parachuteDescent(top_height, timestep, payload_weight, parachute_parameters, payload_area)
+        time_descent, alt_descent, velocity_descent = parachute.parachuteDescent(top_height, timestep, payload_weight, parachute_parameters, payload_area, initial_velocity=initial_velocity)
         datetime_descent = top_datetime + np.array([datetime.timedelta(seconds=this_time) for this_time in time_descent])
     segment_descent = predictTrajectory(datetime_descent, alt_descent, model_data, top_lon, top_lat)
     landing_lon = segment_descent.points[-1].longitude
@@ -311,7 +313,8 @@ def predictBalloonFlight(
         payload_weight, payload_area, ascent_velocity, top_height,
         parachute_parameters, model_data, timestep, 
         descent_velocity=None,
-        descent_only=False):
+        descent_only=False,
+        initial_velocity=0.):
     """
     Predict a balloon flight for given payload and launch parameters.
 
@@ -352,7 +355,8 @@ def predictBalloonFlight(
     # Compute descent.
     segment_descent, landing_lon, landing_lat = predictDescent(
             top_datetime, top_lon, top_lat, top_height, descent_velocity,
-            parachute_parameters, payload_weight, payload_area, model_data, timestep)
+            parachute_parameters, payload_weight, payload_area, model_data, timestep,
+            initial_velocity=initial_velocity)
     track.segments.append(segment_descent)
     waypoints.append(gpxpy.gpx.GPXWaypoint(
             landing_lat, landing_lon, elevation=segment_descent.points[-1].elevation, 
@@ -561,13 +565,16 @@ def liveForecast(
                     track.segments.append(segment_ascent)
                     waypoints.append(gpxpy.gpx.GPXWaypoint(
                             cur_lat, cur_lon, elevation=top_height, time=cur_datetime, name='Ceiling'))
+                    initial_velocity = 0.
                 else:
                     waypoints.append(gpxpy.gpx.GPXWaypoint(
                             top_lat, top_lon, elevation=top_height, time=top_datetime, name='Ceiling'))
                     track_cut = None
+                    initial_velocity = (segment_tracked.points[-1].elevation - segment_tracked.points[-2].elevation) / (segment_tracked.points[-1].time - segment_tracked.points[-2].time).total_seconds()
                 segment_descent, landing_lon, landing_lat = predictDescent(
                         cur_datetime, cur_lon, cur_lat, top_height if is_ascending else cur_alt, descent_velocity, 
-                        parachute_parameters, payload_weight, payload_area, model_data, timestep)
+                        parachute_parameters, payload_weight, payload_area, model_data, timestep,
+                        initial_velocity=initial_velocity)
                 track.segments.append(segment_descent)
                 waypoints.append(gpxpy.gpx.GPXWaypoint(
                         landing_lat, landing_lon,
@@ -868,7 +875,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
     @param launch_datetime
     @param config_file ini file to use (default: 'flight.ini')
     @param descent_only whether to compute descent only (default: False)
-    @param launch_pos launch position (longitude, latitude, altitude), overwrites
+    @param launch_pos launch position (longitude, latitude, altitude[, speed]), overwrites
         position in ini file if specified
     @param output_file output filename for computed trajectory (default: '/tmp/trajectory.gpx')
     @param hourly whether to do an hourly forecast, showing landing spots for diffent launch times (default: False)
@@ -902,6 +909,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
         descent_balloon_parameters = None
     parachute_parameter_list = parachute.readParachuteParameterList(config['parameters']['parachute'])
     parachute_parameters = parachute.lookupParachuteParameters(parachute_parameter_list, config['payload']['parachute_type'])
+    initial_velocity = 0.
     if launch_pos is None:
         launch_lon = config['launch_site'].getfloat('longitude')
         launch_lat = config['launch_site'].getfloat('latitude')
@@ -910,6 +918,8 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
         launch_lon = launch_pos[0]
         launch_lat = launch_pos[1]
         launch_altitude = launch_pos[2]
+        if len(launch_pos) >= 4:
+            initial_velocity = -launch_pos[3]
     timestep = config['parameters'].getint('timestep')
     if 'model_path' in config['parameters']:
         model_path = config['parameters']['model_path']
@@ -993,7 +1003,8 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
             payload_weight, payload_area, ascent_velocity, top_height,
             parachute_parameters, model_data, timestep, 
             descent_velocity=descent_velocity, 
-            descent_only=descent_only)
+            descent_only=descent_only,
+            initial_velocity=initial_velocity)
         if ascent_launch_radius is not None:
             print('Ascent balloon: fill volume {:.3f} m^3, neutral lift {:.3f} kg, burst height {:.0f} m'.format(4./3.*np.pi*ascent_launch_radius**3, ascent_neutral_lift, ascent_burst_height))
         if descent_velocity is not None:
@@ -1019,7 +1030,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser('Balloon trajectory predictor')
     parser.add_argument('launchtime', help='Launch date and time (UTC) dd-mm-yyyy HH:MM:SS')
     parser.add_argument('-i', '--ini', required=False, default='flight.ini', help='Configuration ini file name (default: flight.ini)')
-    parser.add_argument('-p', '--position', required=False, default=None, help='Start position lon,lat,alt')
+    parser.add_argument('-p', '--position', required=False, default=None, help='Start position lon,lat,alt[,speed]')
     parser.add_argument('-d', '--descent-only', required=False, action='store_true', default=False, help='Descent only')
     parser.add_argument('-t', '--timely', required=False, type=int, default=None, help='Do hourly prediction and show landing sites for given number of hours')
     parser.add_argument('-l', '--live', required=False, nargs='?', default=None, const='comm.ini', help='Do a live prediction')

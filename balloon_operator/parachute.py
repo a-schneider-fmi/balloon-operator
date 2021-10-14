@@ -40,7 +40,7 @@ def lookupParachuteParameters(parameter_list, name):
     return filling.lookupParameters(parameter_list, name, key='name')
 
 
-def parachuteDescent(alt_start, timestep, payload_weight, parachute_parameters, payload_area, payload_drag_coefficient=0.25):
+def parachuteDescent(alt_start, timestep, payload_weight, parachute_parameters, payload_area, payload_drag_coefficient=0.25, initial_velocity=0.):
     """
     Compute descent on parachute by solving the equation of motion.
 
@@ -55,17 +55,17 @@ def parachuteDescent(alt_start, timestep, payload_weight, parachute_parameters, 
     @param payload_drag_coefficient drag coefficient of payload (default 0.25)
 
     @return time array of time relative to begin of descent in s
-    @return altitude array of altitudes
-    @return velocity array of velocities
+    @return altitude array of altitudes in m
+    @return velocity array of velocities in m/s
     """
 
     # Initialise variables.
     t = 0
     z = alt_start;
-    s = 0
-    
+    s = initial_velocity
+
     delt=.2
-    
+
     # Atmospheric constants:
     M = 0.02896 # molar mass of air in kg/mol
     R = 8.314 # gas-constant in J/(K*mol)
@@ -124,6 +124,8 @@ def parachuteDescent(alt_start, timestep, payload_weight, parachute_parameters, 
     velocity = velocity[:i]
 
     # Downsample data array.
+    if len(time) == 0:
+        return time, altitude, velocity
     time_end = time[-1]
     altitude_end = altitude[-1]
     velocity_end = velocity[-1]
@@ -137,3 +139,23 @@ def parachuteDescent(alt_start, timestep, payload_weight, parachute_parameters, 
         velocity = np.append(velocity, velocity_end)
 
     return time, altitude, velocity
+
+if __name__ == '__main__':
+    import argparse
+    from matplotlib import pyplot as plt
+    parser = argparse.ArgumentParser()
+    parser.add_argument('parachute', help='Parachute type')
+    parser.add_argument('weight', type=float, help='Payload weight in kg')
+    parser.add_argument('-p', '--parameters', required=False, default='parachute_parameters.tsv', help='Parachute parameter file')
+    parser.add_argument('-a', '--altitude', required=False, type=float, default=30000., help='Start altitude')
+    parser.add_argument('-v', '--velocity', required=False, type=float, default=0., help='Start velocity')
+    parser.add_argument('--area', required=False, type=float, default=0.15, help='Payload area')
+    args = parser.parse_args()
+    parachute_parameter_list = readParachuteParameterList(args.parameters)
+    parachute_parameters = lookupParachuteParameters(parachute_parameter_list, args.parachute)
+    timestep = 10
+    time, altitude, velocity = parachuteDescent(args.altitude, timestep, args.weight, parachute_parameters, args.area, initial_velocity=-args.velocity)
+    plt.plot(-velocity, altitude/1000.)
+    plt.xlabel('Descent velocity (m/s)')
+    plt.ylabel('Altitude (km)')
+    plt.show()

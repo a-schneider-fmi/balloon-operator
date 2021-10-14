@@ -929,6 +929,7 @@ class OperatorWidget(QWidget):
             track.segments.append(segment_ascent)
             waypoints.append(gpxpy.gpx.GPXWaypoint(
                     cur_lat, cur_lon, elevation=self.flight_parameters['top_altitude'], time=cur_datetime, name='Ceiling'))
+            initial_descent_velocity = 0.
         else:
             waypoints.append(self.top_point)
             waypoints.append(sbd_receiver.message2waypoint(msg, name='Current'))
@@ -937,6 +938,8 @@ class OperatorWidget(QWidget):
             cur_lat = self.segment_tracked.points[-1].latitude
             cur_alt = self.segment_tracked.points[-1].elevation
             track_cut = None
+            initial_descent_velocity = (self.segment_tracked.points[-1].elevation - self.segment_tracked.points[-2].elevation) / (self.segment_tracked.points[-1].time - self.segment_tracked.points[-2].time).total_seconds()
+            print(initial_descent_velocity) # DEBUG
         segment_descent, landing_lon, landing_lat = trajectory_predictor.predictDescent(
                 cur_datetime, cur_lon, cur_lat,
                 self.flight_parameters['top_altitude'] if self.top_point is None else cur_alt,
@@ -945,7 +948,8 @@ class OperatorWidget(QWidget):
                 self.flight_parameters['payload_weight'],
                 self.flight_parameters['payload_area'],
                 self.model_data,
-                self.timestep)
+                self.timestep,
+                initial_velocity=initial_descent_velocity)
         flight_range = geog.distance(
                 [self.flight_parameters['launch_lon'], self.flight_parameters['launch_lat']],
                 [landing_lon, landing_lat]) / 1000.
