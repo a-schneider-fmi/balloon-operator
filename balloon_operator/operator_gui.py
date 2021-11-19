@@ -605,7 +605,6 @@ class OperatorWidget(QWidget):
         Overrides QWidget's closeEvent method.
         """
         self.stopLiveForecast()
-        self.stopLiveOperation.emit()
 
     def loadConfig(self, config_file):
         """
@@ -819,10 +818,15 @@ class OperatorWidget(QWidget):
         self.ui.label_ascent_status_value.setText('ascending')
         if self.comm_settings is None:
             self.onLoadConfig()
-        self.imap = sbd_receiver.connectImap(
-                self.comm_settings['email']['host'],
-                self.comm_settings['email']['user'],
-                self.comm_settings['email']['password'])
+        try:
+            self.imap = sbd_receiver.connectImap(
+                    self.comm_settings['email']['host'],
+                    self.comm_settings['email']['user'],
+                    self.comm_settings['email']['password'])
+        except Exception as err:
+            QMessageBox.critical(self, 'Connection error', f'Cannot connect to IMAP server: {err}')
+            self.stopLiveForecast()
+            return
         worker = Worker(self.downloadModelData, error_callback=self.showError)
         worker.signals.finished.connect(self.onWorkerFinished)
         worker.signals.finished.connect(self.timer.start)
@@ -834,8 +838,11 @@ class OperatorWidget(QWidget):
         Stops a live forecast.
         """
         self.timer.stop()
-        sbd_receiver.disconnectImap(self.imap)
+        if self.imap is not None:
+            sbd_receiver.disconnectImap(self.imap)
+            self.imap = None
         self.model_data = None
+        self.stopLiveOperation.emit()
 
     def queryMessages(self):
         """
