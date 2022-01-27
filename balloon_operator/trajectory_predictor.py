@@ -23,7 +23,8 @@ import argparse
 import logging
 import tempfile
 from copy import deepcopy
-from balloon_operator import filling, parachute, download_model_data, constants, sbd_receiver, comm, utils
+import traceback
+from balloon_operator import filling, parachute, download_model_data, constants, message, message_sbd, message_file, comm, utils
 
 
 def m2deg(lon, lat, u, v):
@@ -420,6 +421,86 @@ def detectDescent(segment_tracked, launch_altitude):
         return None
 
 
+def readCommSettings(filename):
+    """
+    Load communication settings from an ini file.
+    """
+    settings = {
+            'connection': {
+                    'type': 'rockblock',
+                    'poll_time': 30
+                    },
+            'email': {
+                    'host': None,
+                    'user': None,
+                    'password': None,
+                    'from': '@rockblock.rock7.com'
+                    },
+            'rockblock': {
+                    'user': None,
+                    'password': None
+                    },
+            'file': {
+                    'path': None,
+                    'delimiter': '\t'
+                    },
+            'webserver': {
+                    'protocol': None,
+                    'host': None,
+                    'user': None,
+                    'password': None,
+                    'directory': None,
+                    'webpage': None,
+                    'networklink': None,
+                    'refreshinterval': None
+                    },
+            'output': {
+                    'format': 'gpx',
+                    'filename': 'trajectory.kml',
+                    'directory': tempfile.gettempdir()
+                    },
+            'geofence': {
+                    'radius': 0.
+                    }
+            }
+    config = configparser.ConfigParser()
+    config.read(filename)
+    for section in config.sections():
+        if section not in settings:
+            settings[section] = {}
+        for option in config.options(section):
+            if option in settings[section]: # if a default value exists
+                default_value = settings[section][option]
+            else:
+                default_value = None
+            if isinstance(default_value,float):
+                settings[section][option] = config[section].getfloat(option)
+            elif isinstance(default_value,int):
+                settings[section][option] = config[section].getint(option)
+            elif isinstance(default_value,bool):
+                settings[section][option] = config[section].getboolean(option)
+            else:
+                settings[section][option] = config[section].get(option)
+    return settings
+
+
+def messageHandlerFromSettings(settings):
+    """
+    Create a Message object corresponding to the given settings.
+    """
+    if settings['connection']['type'] == 'rockblock':
+        if settings['email']['host'] is None or settings['email']['user'] is None or settings['email']['password'] is None:
+            raise ValueError('Reception connection set to rockblock, but no complete email configuration is present.')
+        message_handler = message_sbd.fromSettings(settings)
+    elif settings['connection']['type'] == 'file':
+        message_handler = message_file.fromSettings(settings)
+        if settings['file']['path'] is None:
+            raise ValueError('Reception connection set to file, but no file path is given.')
+    else:
+        raise ValueError('Unknown connection type: {}'.format(settings['connection']['type']))
+    return message_handler
+
+
 def liveForecast(
         launch_datetime, launch_lon, launch_lat, launch_altitude,
         payload_weight, payload_area, ascent_velocity, top_height,
@@ -447,44 +528,8 @@ def liveForecast(
     @param kml_output whether to output kml istead of gpx (overwritten by configuration file)
     """
     # Read communication configuration.
-    config = configparser.ConfigParser()
-    config.read(ini_file)
-    imap = sbd_receiver.connectImap(config['email']['host'], config['email']['user'], config['email']['password'])
-    from_address = config['email'].get('from', fallback='@rockblock.rock7.com')
-    poll_time = config['email'].getint('poll_time', fallback=30)
-
-    if config.has_section('webserver'):
-        upload = {
-                'protocol': config['webserver'].get('protocol', fallback='ftp'),
-                'host': config['webserver'].get('host'),
-                'user': config['webserver'].get('user', fallback=None),
-                'password': config['webserver'].get('password', fallback=None),
-                'directory': config['webserver'].get('directory', fallback=None)
-                }
-        upload.update(config['webserver'])
-        networklink = config['webserver'].get('networklink', fallback=None)
-        refreshinterval = config['webserver'].getint('refreshinterval', fallback=30)
-        webpage = config['webserver'].get('webpage', fallback=None)
-    else:
-        upload = None
-        networklink = kml_output if isinstance(kml_output,str) else None
-        refreshinterval = 60
-        webpage = None
-    if config.has_section('geofence') and 'radius' in config['geofence']:
-        geofence_radius = config['geofence'].getfloat('radius')
-    else:
-        geofence_radius = None
-    output_dir = ''
-    if config.has_section('output'):
-        if 'format' in config['output']:
-            if config['output'].get('format').lower() == 'kml':
-                kml_output = True
-            if config['output'].get('format').lower() == 'gpx':
-                kml_output = False
-        if 'filename' in config['output']:
-            output_file = config['output'].get('filename')
-        if 'directory' in config['output']:
-            output_dir = config['output'].get('directory')
+    settings = readCommSettings(ini_file)
+    message_handler = messageHandlerFromSettings(settings)
 
     # Read model data.
     if launch_datetime is None:
@@ -497,6 +542,7 @@ def liveForecast(
 
     # Do live prediction.
     logging.info('Starting live forecast. Waiting for messages ...')
+    message_handler.connect()
     segment_tracked = gpxpy.gpx.GPXTrackSegment()
     is_ascending = True
     cur_lon = launch_lon
@@ -504,17 +550,17 @@ def liveForecast(
     cur_alt = launch_altitude
     while True:
         try:
-            messages = sbd_receiver.getMessages(imap, from_address=from_address, all_messges=False)
+            messages = message_handler.getDecodedMessages()
             if len(messages) > 0:
                 logging.info('Received {} message(s).'.format(len(messages)))
                 logging.info('Last: {}'.format(messages[-1]))
                 is_invalid = np.zeros(len(messages), dtype=bool)
                 for ind_msg in range(len(messages)):
                     msg = messages[ind_msg]
-                    if not checkGeofence(msg['LON'], msg['LAT'], launch_lon, launch_lat, geofence_radius):
+                    if not checkGeofence(msg['LON'], msg['LAT'], launch_lon, launch_lat, settings['geofence']['radius']):
                         is_invalid[ind_msg] = True
                         continue
-                    segment_tracked.points.append(sbd_receiver.message2trackpoint(msg))
+                    segment_tracked.points.append(message_handler.message2trackpoint(msg))
                 if all(is_invalid):
                     msg = None
                     continue
@@ -545,7 +591,7 @@ def liveForecast(
                         elevation=segment_tracked.points[0].elevation,
                         time=segment_tracked.points[0].time,
                         name='Launch')]
-                waypoints.append(sbd_receiver.message2waypoint(msg, 'Current'))
+                waypoints.append(message_handler.message2waypoint(msg, 'Current'))
                 track = gpxpy.gpx.GPXTrack()
                 track.segments.append(segment_tracked)
                 if is_ascending:
@@ -581,22 +627,22 @@ def liveForecast(
                         elevation=segment_descent.points[-1].elevation,
                         time=segment_descent.points[-1].time, name='Landing'))
                 if kml_output:
-                    writeKml(track, os.path.join(output_dir, output_file), waypoints=waypoints, networklink=networklink, refreshinterval=refreshinterval, upload=upload)
+                    writeKml(track, os.path.join(settings['output']['directory'], output_file), waypoints=waypoints, networklink=settings['webserver']['networklink'], refreshinterval=settings['webserver']['refreshinterval'], upload=settings['webserver'] if settings['webserver']['protocol'] else None)
                     if track_cut:
-                        writeKml(track_cut, os.path.join(output_dir, os.path.splitext(output_file)[0]+'-cut.kml'), waypoints=waypoints_cut, upload=upload)
+                        writeKml(track_cut, os.path.join(settings['output']['directory'], os.path.splitext(output_file)[0]+'-cut.kml'), waypoints=waypoints_cut, upload=settings['webserver'] if settings['webserver']['protocol'] else None)
                 else:
-                    writeGpx(track, os.path.join(output_dir, output_file), waypoints=waypoints, upload=upload)
+                    writeGpx(track, os.path.join(settings['output']['directory'], output_file), waypoints=waypoints, upload=settings['webserver'] if settings['webserver']['protocol'] else None)
                     if track_cut:
-                        writeGpx(track_cut, os.path.join(output_dir, os.path.splitext(output_file)[0]+'-cut.gpx'), waypoints=waypoints_cut, upload=upload)
-                if webpage:
+                        writeGpx(track_cut, os.path.join(settings['output']['directory'], os.path.splitext(output_file)[0]+'-cut.gpx'), waypoints=waypoints_cut, upload=settings['webserver'] if settings['webserver']['protocol'] else None)
+                if settings['webserver']['webpage']:
                     if track_cut:
                         waypoints.append(waypoints_cut[-1]) # Add landing point for cutting balloon now.
-                    createWebpage(track, waypoints, webpage, upload=upload, track_cut=track_cut)
+                    createWebpage(track, waypoints, settings['webserver']['webpage'], upload=settings['webserver'] if settings['webserver']['protocol'] else None, track_cut=track_cut)
         except Exception as err:
-            logging.critical('Exception occurred: {}'.format(err))
-        time.sleep(poll_time)
+            logging.critical('Exception occurred: {}'.format(traceback.format_exc()))
+        time.sleep(settings['connection']['poll_time'])
             
-    sbd_receiver.disconnectImap(imap)
+    message_handler.disconnect()
     return
 
 

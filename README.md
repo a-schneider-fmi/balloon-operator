@@ -2,7 +2,7 @@
 
 Balloon operation software including trajectory prediction and flight control
 
-This software package is based on the BalloonTrajectory MATLAB software which
+This software package is based on the BalloonTrajectory MATLAB software that
 has been developed by Jens Söder <soeder@iap-kborn.de> at the Institute of
 Atmospheric Physics in Kühlungsborn.
 
@@ -32,6 +32,7 @@ and if needed
 pip install folium
 pip install paramiko
 pip install pyside6
+pip install matplotlib
 ```
 With Anaconda, packages are installed with `conda`:
 ```
@@ -49,10 +50,13 @@ conda install matplotlib
 ```
 The package `srtm-python` is not available in pypi and has to be cloned from github.
 
-On Linux, however, it is advisable to install through the system's packaging
-system. For example on Debian-based distributions:
+On Linux, however, it is advisable to install Python packages through the system's
+packaging system. On Debian-based distributions (e.g. Ubuntu) the command is
 ```
 sudo apt install python3-numpy python3-scipy python3-requests python3-grib python3-magic python3-gpxpy
+```
+and if needed
+```
 sudo apt install python3-matplotlib
 ```
 Some Python packages are not available through the Linux packaging system.
@@ -115,23 +119,34 @@ Arguments:
 * `-o output_filename` : write output in file `output_filename`
 * `--log` : set verbosity (CRITICAL, ERROR, WARNING, INFO, DEBUG), default INFO
 
-### SBD message generator and sender
+### SBD message translator and sender/receiver `message_sbd`
 
-A command-line program to encode a binary SBD message and optionally send it to a mobile device.
+A command-line program to decode and encode binary SBD messages and optionally
+receive/send from/to a mobile device.
 
 Arguments:
-* `-p lon,lat,alt`: include given position in message
-* `-t [YY-mm-ddTHH:MM:SS]`: include time in message (now if now string specified)
-* `-u n[,m]`: include userfunction n (and m) in message, where n and m are digits between 1 and 8
-* `-o filename`: output binary message to given file
-* `-s agt.ini` : send message to device specified in given ini file
 
-The ini file should have the following entries:
+* `-r config.ini` : retrieve messages via IMAP as specified in configuration file
+* `-a` : retrieve all messages, not only unread ones
+* `-o filename` : output file for encoded binary message or GPX track from decoded message(s)
+* `-c` : write out time, coordinates and optional data in CSV format
+* `-d` : decode binary message given as hex string
+* `-e` : encode binary message
+* `-p lon,lat,alt` : include given position in encoded message
+* `-t [YY-mm-ddTHH:MM:SS]` : include time in encoded message (now if no time specified)
+* `-u n[,m]` : include userfunction(s) in message, where the argument is a comma-separated list of digits between 1 and 8
+* `-s tracker.ini` : send message to device specified in given ini file
+
+The ini file for retrieving should include an `email` section as described below
+under communications configuration file.
+
+The ini file for sending should have the following entries:
 * option in section `device`:
     * `imei`: The unique IMEI of the RockBLOCK to send to
 * options in section `rockblock`:
     * `user`: Rock 7 Core username
     * `password`: Rock 7 Core password
+This is also compatible with the structure of the communication ini file.
 
 
 ## File formats
@@ -162,6 +177,12 @@ An example is included in `flight.ini`. The configuration file contains:
 ### Communications configuration file
 
 An example is included in `comm.ini`. The configuration contains:
+* options in section `connection`:
+    * `type`:  type of connection to balloon, currently implemented options:
+        * `rockblock`: RockBLOCK service using SBD messages via IRIDIUM satellite link
+        * `file`: read data from local file
+    * `poll_time`: Time interval in seconds to poll for new messages (default: 30)
+      Can also be selected in the GUI.
 * options in section `email`:
     * `host`: hostname to query mails with SBD messages via IMAP
     * `user`: username for IMAP
@@ -172,6 +193,9 @@ An example is included in `comm.ini`. The configuration contains:
     * `password`: password at Rock 7 Core (used to send messages to devices)
 * options in section `rockblock_devices`:
     * Provide a list of RockBLOCK devices in the format `Name = imei`
+* options in section `file`:
+    * `path`: path to the csv file to read data from
+    * `delimiter`: delimiter of the csv file (default: '\t' (tab))
 * options in section `webserver`:
     * `protocol`: protocol by which to upload data to webserver, `ftp`, `sftp` or `post`
     * `host`: hostname on which to upload results (or upload URL for post method)

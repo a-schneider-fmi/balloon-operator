@@ -15,7 +15,7 @@ from PySide6.QtUiTools import QUiLoader
 from gui_mainwidget import Ui_MainWidget
 from gui_operatorwidget import Ui_OperatorWidget
 import gui_icons
-from balloon_operator import filling, parachute, trajectory_predictor, download_model_data, sbd_receiver, sbd_creator, utils
+from balloon_operator import filling, parachute, trajectory_predictor, download_model_data, message, message_sbd, utils
 import configparser
 import datetime
 import argparse
@@ -547,7 +547,7 @@ class OperatorWidget(QWidget):
         self.model_path = tempfile.gettempdir()
         self.model_data = None
         self.comm_settings = None
-        self.imap = None
+        self.message_handler = None
         self.timer = QTimer(self)
         self.timer.setInterval(60000) # default time of 1 minute
         self.timer.timeout.connect(self.queryMessages)
@@ -610,42 +610,11 @@ class OperatorWidget(QWidget):
         """
         Load a communication configuration file.
         """
-        config = configparser.ConfigParser()
-        config.read(config_file)
-        self.comm_settings = {
-                'email': {
-                        'host': config['email'].get('host'),
-                        'user': config['email'].get('user'),
-                        'password': config['email'].get('password'),
-                        'from': config['email'].get('from', fallback='@rockblock.rock7.com')
-                        },
-                'rockblock': {
-                        'user': config['rockblock'].get('user'),
-                        'password': config['rockblock'].get('password')
-                        },
-                'upload': {
-                        'protocol': config['webserver'].get('protocol', fallback='ftp'),
-                        'host': config['webserver'].get('host'),
-                        'user': config['webserver'].get('user', fallback=None),
-                        'password': config['webserver'].get('password', fallback=None),
-                        'directory': config['webserver'].get('directory', fallback=None)
-                        },
-                'webpage': {
-                        'networklink': config['webserver'].get('networklink', fallback=None),
-                        'refreshinterval': config['webserver'].get('refreshinterval', fallback=None),
-                        'webpage': config['webserver'].get('webpage', fallback=None),
-                        },
-                'output': {
-                        'format': 'gpx',
-                        'filename': config['output'].get('filename', fallback='trajectory.kml'),
-                        'directory': config['output'].get('directory', fallback=tempfile.gettempdir())
-                        },
-                'geofence': {
-                        'radius': None
-                        }
-                }
-        if config.has_section('geofence') and 'radius' in config['geofence']:
-            self.comm_settings['geofence']['radius'] = config['geofence'].getfloat('radius')
+        self.comm_settings = trajectory_predictor.readCommSettings(config_file)
+        try:
+            self.message_handler = trajectory_predictor.messageHandlerFromSettings(self.comm_settings)
+        except ValueError as err:
+            QMessageBox.critical(self, 'Configuration error', err)
         self.loadIridiumList(config_file)
 
     def loadIridiumList(self, config_file):
@@ -658,12 +627,11 @@ class OperatorWidget(QWidget):
         self.ui.combo_iridium.clear()
         self.ui.combo_receive_imei.clear()
         self.ui.combo_receive_imei.addItem('All', '')
-        for name in config.options('rockblock_devices'):
-            imei = config['rockblock_devices'].get(name)
-            self.ui.combo_iridium.addItem('{} ({})'.format(name, imei), imei)
-            self.ui.combo_receive_imei.addItem('{} ({})'.format(name, imei), str(imei))
-        self.comm_settings['rockblock']['user'] = config['rockblock'].get('user')
-        self.comm_settings['rockblock']['password'] = config['rockblock'].get('password')
+        if 'rockblock_devices' in config.sections():
+            for name in config.options('rockblock_devices'):
+                imei = config['rockblock_devices'].get(name)
+                self.ui.combo_iridium.addItem('{} ({})'.format(name, imei), imei)
+                self.ui.combo_receive_imei.addItem('{} ({})'.format(name, imei), str(imei))
 
     def setStandardData(self, data):
         """
@@ -819,10 +787,7 @@ class OperatorWidget(QWidget):
         if self.comm_settings is None:
             self.onLoadConfig()
         try:
-            self.imap = sbd_receiver.connectImap(
-                    self.comm_settings['email']['host'],
-                    self.comm_settings['email']['user'],
-                    self.comm_settings['email']['password'])
+            self.message_handler.connect()
         except Exception as err:
             QMessageBox.critical(self, 'Connection error', f'Cannot connect to IMAP server: {err}')
             self.stopLiveForecast()
@@ -838,9 +803,8 @@ class OperatorWidget(QWidget):
         Stops a live forecast.
         """
         self.timer.stop()
-        if self.imap is not None:
-            sbd_receiver.disconnectImap(self.imap)
-            self.imap = None
+        if self.message_handler.isConnected():
+            self.message_handler.disconnect()
         self.model_data = None
         self.stopLiveOperation.emit()
 
@@ -850,7 +814,7 @@ class OperatorWidget(QWidget):
         """
         from_address = self.ui.combo_receive_imei.currentData() + '@rockblock.rock7.com'
         print("Querying messages from {} ...".format(from_address)) # DEBUG
-        messages = sbd_receiver.getMessages(self.imap, from_address=from_address, all_messges=False)
+        messages = self.message_handler.getDecodedMessages(from_address=from_address)
         if len(messages) > 0:
             logging.info('Received {} message(s).'.format(len(messages)))
             logging.info('Last: {}'.format(messages[-1]))
@@ -864,7 +828,7 @@ class OperatorWidget(QWidget):
                         self.comm_settings['geofence']['radius']):
                     is_invalid[ind_msg] = True
                 else:
-                    self.segment_tracked.points.append(sbd_receiver.message2trackpoint(msg))
+                    self.segment_tracked.points.append(message.Message.message2trackpoint(msg))
                     self.appendTimeseries(msg)
             print('Valid messages: {}'.format(np.array(messages)[~is_invalid])) # DEBUG
             if not all(is_invalid):
@@ -894,16 +858,16 @@ class OperatorWidget(QWidget):
             ind_top = trajectory_predictor.detectDescent(self.segment_tracked, self.flight_parameters['launch_alt'])
             print('ind_top', ind_top) # DEBUG
             if ind_top is not None: # descent detected
-                self.top_point = sbd_receiver.message2waypoint(msg, name='Ceiling')
+                self.top_point = message.Message.message2waypoint(msg, name='Ceiling')
                 self.ui.label_ascent_status_value.setText('descending')
         if self.segment_tracked.points[-1].elevation > np.maximum(self.flight_parameters['top_altitude'], self.top_point.elevation if self.top_point is not None else 0.):
             logging.info('Balloon above top altitude. Assuming descent is imminent.')
-            self.top_point = sbd_receiver.message2waypoint(msg, name='Ceiling')
+            self.top_point = message.Message.message2waypoint(msg, name='Ceiling')
         track = gpxpy.gpx.GPXTrack()
         track.segments.append(self.segment_tracked)
         waypoints = [self.launch_point]
         if self.top_point is None:
-            waypoints.append(sbd_receiver.message2waypoint(msg, name='Current'))
+            waypoints.append(message.Message.message2waypoint(msg, name='Current'))
             # Track if balloon is cut now.
             track_cut = deepcopy(track)
             segment_cut, lon_cut, lat_cut = trajectory_predictor.predictDescent(
@@ -939,7 +903,7 @@ class OperatorWidget(QWidget):
             initial_descent_velocity = 0.
         else:
             waypoints.append(self.top_point)
-            waypoints.append(sbd_receiver.message2waypoint(msg, name='Current'))
+            waypoints.append(message.Message.message2waypoint(msg, name='Current'))
             cur_datetime = self.segment_tracked.points[-1].time
             cur_lon = self.segment_tracked.points[-1].longitude
             cur_lat = self.segment_tracked.points[-1].latitude
@@ -971,34 +935,34 @@ class OperatorWidget(QWidget):
                     track,
                     os.path.join(self.comm_settings['output']['directory'], self.comm_settings['output']['filename']),
                     waypoints=waypoints,
-                    networklink=self.comm_settings['webpage']['networklink'],
-                    refreshinterval=self.comm_settings['webpage']['refreshinterval'],
-                    upload=self.comm_settings['upload'])
+                    networklink=self.comm_settings['webserver']['networklink'],
+                    refreshinterval=self.comm_settings['webserver']['refreshinterval'],
+                    upload=self.comm_settings['webserver'])
             if track_cut:
                 trajectory_predictor.writeKml(
                         track_cut,
                         os.path.join(self.comm_settings['output']['directory'], os.path.splitext(self.comm_settings['output']['filename'])[0]+'-cut.kml'),
                         waypoints=waypoints_cut,
-                        upload=self.comm_settings['upload'])
+                        upload=self.comm_settings['webserver'])
         else:
             trajectory_predictor.writeGpx(
                     track,
                     os.path.join(self.comm_settings['output']['directory'], self.comm_settings['output']['filename']),
                     waypoints=waypoints,
-                    upload=self.comm_settings['upload'])
+                    upload=self.comm_settings['webserver'])
             if track_cut:
                 trajectory_predictor.writeGpx(
                         track_cut,
                         os.path.join(self.comm_settings['output']['directory'], os.path.splitext(self.comm_settings['output']['filename'])[0]+'-cut.gpx'),
                         waypoints=waypoints_cut,
-                        upload=self.comm_settings['upload'])
-        if self.comm_settings['webpage']['webpage']:
+                        upload=self.comm_settings['webserver'])
+        if self.comm_settings['webserver']['webpage']:
             if track_cut:
                 waypoints.append(waypoints_cut[-1]) # Add landing point if balloon is cut now.
             trajectory_predictor.createWebpage(track,
                           waypoints,
-                          self.comm_settings['webpage']['webpage'],
-                          upload=self.comm_settings['upload'],
+                          self.comm_settings['webserver']['webpage'],
+                          upload=self.comm_settings['webserver'],
                           track_cut=track_cut)
 
     def sendIridiumMessage(self, imei, msg, username, password, progress_callback=None, error_callback=None):
@@ -1006,7 +970,7 @@ class OperatorWidget(QWidget):
         Send an IRIDIUM message to a mobile device via RockBLOCK's web interface.
         This function can be executed in a separate worker thread.
         """
-        success, message = sbd_creator.sendMessage(imei, msg, username, password)
+        success, message = self.message_handler.sendMessage(imei, msg, username, password)
         if success:
             self.ui.label_status.setText('Message sent.')
         else:
@@ -1047,9 +1011,9 @@ class OperatorWidget(QWidget):
             data['USERFUNC1'] = 1
         if self.ui.check_cutter2.isChecked():
             data['USERFUNC2'] = 1
-        msg = sbd_receiver.encodeSdb(data)
+        msg = self.message_handler.encodeMessage(data)
         imei = self.ui.combo_iridium.currentData()
-        logging.info('Sending message "{}" to IMEI {} ...'.format(sbd_receiver.bin2asc(msg), imei))
+        logging.info('Sending message "{}" to IMEI {} ...'.format(message_sbd.MessageSbd.bin2asc(msg), imei))
         self.ui.label_status.setText('Sending message ...')
         worker = Worker(self.sendIridiumMessage, imei, msg, self.comm_settings['rockblock']['user'], self.comm_settings['rockblock']['password'], error_callback=self.showError)
         self.threadpool.start(worker)
