@@ -60,11 +60,11 @@ class Worker(QRunnable):
 
     Inherits from QRunnable to handler worker thread setup, signals and wrap-up.
 
-    :param callback: The function callback to run on this worker thread. Supplied args and
+    @param callback: The function callback to run on this worker thread. Supplied args and
                      kwargs will be passed through to the runner.
-    :type callback: function
-    :param args: Arguments to pass to the callback function
-    :param kwargs: Keywords to pass to the callback function
+    @type callback: function
+    @param args: Arguments to pass to the callback function
+    @param kwargs: Keywords to pass to the callback function
 
     '''
 
@@ -122,6 +122,7 @@ class MainWidget(QWidget):
         self.balloon_performance = {}
         self.timestep = 10
         self.model_path = tempfile.gettempdir()
+        self.setBalloonPicture(self.ui.check_descent_balloon.isChecked())
 
         self.ui.button_now.clicked.connect(self.launchtimeNow)
         self.ui.button_load_payload.clicked.connect(self.onLoadPayload)
@@ -134,6 +135,8 @@ class MainWidget(QWidget):
         self.ui.combo_fill_gas.activated.connect(self.onChangeBalloonParameter)
         self.ui.spin_asc_velocity.valueChanged.connect(self.onChangeBalloonParameter)
         self.ui.spin_desc_velocity.valueChanged.connect(self.onChangeBalloonParameter)
+        self.ui.spin_cut_altitude.valueChanged.connect(self.onChangeCutAltitude)
+        self.ui.combo_cut_altitude_unit.activated.connect(self.onChangeCutAltitude)
         self.ui.button_output_file_dialog.clicked.connect(self.onOutputFileSelector)
         self.ui.check_webpage.stateChanged.connect(self.onChangeCheckWebpage)
         self.ui.button_webpage_file_dialog.clicked.connect(self.onWebpageFileSelector)
@@ -284,10 +287,51 @@ class MainWidget(QWidget):
                 'descent_launch_radius': descent_launch_radius,
                 'descent_burst_height': descent_burst_height}
 
-    def setLanding(self, longitude, latitude, altitude, flight_range):
+    def setWarningText(self):
+        ascent_burst_height = self.balloon_performance['ascent_burst_height']
+        descent_burst_height = self.balloon_performance['descent_burst_height']
+        cut_altitude = self.getCutAltitude()
+        if cut_altitude is not None:
+            if ascent_burst_height < cut_altitude + 1000.:
+                self.ui.label_balloon_performance_warning.setText(
+                        'Ascent balloon bursts too early.')
+            elif descent_burst_height is not None and descent_burst_height < cut_altitude + 1000.:
+                self.ui.label_balloon_performance_warning.setText(
+                        'Descent balloon bursts too early.')
+            elif descent_burst_height is not None and descent_burst_height - ascent_burst_height < 1000.:
+                self.ui.label_balloon_performance_warning.setText(
+                        'Descent balloon bursts before ascent balloon.')
+            else:
+                self.ui.label_balloon_performance_warning.setText('')
+        else:
+            if descent_burst_height is not None:
+                self.ui.label_balloon_performance_warning.setText(
+                        'Cutter recommended for two-balloon flight.')
+            else:
+                self.ui.label_balloon_performance_warning.setText('')
+        if descent_burst_height is not None and self.balloon_performance['descent_velocity'] <= 0:
+            self.ui.label_balloon_performance_warning.setText(
+                    'Descent velocity must be positive.')
+        if self.balloon_performance['ascent_velocity'] <= 0:
+            self.ui.label_balloon_performance_warning.setText(
+                    'Ascent velocity must be positive.')
+
+    def setBalloonPicture(self, has_descent_balloon):
+        """
+        Load drawing of balloon configuration.
+        """
+        if has_descent_balloon:
+            filename = 'gui_drawing_two_balloons.svg'
+        else:
+            filename = 'gui_drawing_one_balloon.svg'
+        self.ui.widget_drawing.load(os.path.join(os.path.dirname(__file__),filename))
+
+    def setLanding(self, time, longitude, latitude, altitude, flight_range):
         """
         Set result section of UI.
         """
+        self.ui.label_landing_time_value.setText(
+                '--' if altitude is None else '{}'.format(utils.roundSeconds(time)))
         self.ui.label_landing_longitude_value.setText(
                 '--' if longitude is None else '{:.5f}°'.format(longitude))
         self.ui.label_landing_latitude_value.setText(
@@ -296,6 +340,18 @@ class MainWidget(QWidget):
                 '--' if altitude is None else '{:.0f} m'.format(altitude))
         self.ui.label_range_value.setText(
                 '--' if flight_range is None else '{:.0f} km'.format(flight_range))
+
+    def getCutAltitude(self):
+        """
+        Return selected cut altitude, or None if no cutting is selected.
+        """
+        if self.ui.check_cut.isChecked():
+            if self.ui.combo_cut_altitude_unit.currentText() == 'hPa':
+                return utils.press2alt(self.ui.spin_cut_altitude.value()*100., p0=101325.) # TODO: use real sea-level pressure, or take altitude from model data
+            else:
+                return self.ui.spin_cut_altitude.value()
+        else:
+            return None
 
     def flightParameters(self):
         """
@@ -311,12 +367,9 @@ class MainWidget(QWidget):
                 'output_file': self.ui.edit_output_file.text(),
                 'webpage_file': self.ui.edit_webpage_file.text() if self.ui.check_webpage.isChecked() else None
                 }
-        if self.ui.check_cut.isChecked():
-            if self.ui.combo_cut_altitude_unit.currentText() == 'hPa':
-                parameters['top_altitude'] = utils.press2alt(self.ui.spin_cut_altitude.value()*100., p0=101325.) # TODO: use real sea-level pressure, or take altitude from model data
-            else:
-                parameters['top_altitude'] = self.ui.spin_cut_altitude.value()
-            parameters['top_altitude'] = np.minimum(parameters['top_altitude'], self.balloon_performance['ascent_burst_height'])
+        cut_altitude = self.getCutAltitude()
+        if cut_altitude is not None:
+            parameters['top_altitude'] = np.minimum(cut_altitude, self.balloon_performance['ascent_burst_height'])
         else:
             if 'ascent_burst_height' in self.balloon_performance:
                 parameters['top_altitude'] = self.balloon_performance['ascent_burst_height']
@@ -350,7 +403,7 @@ class MainWidget(QWidget):
             parameters['parachute_parameters'],
             model_data, self.timestep, 
             descent_velocity=parameters['descent_velocity'])
-        self.setLanding(track.segments[-1].points[-1].longitude, track.segments[-1].points[-1].latitude, track.segments[-1].points[-1].elevation, flight_range)
+        self.setLanding(track.segments[-1].points[-1].time, track.segments[-1].points[-1].longitude, track.segments[-1].points[-1].latitude, track.segments[-1].points[-1].elevation, flight_range)
 
         # Save resulting trajectory.
         output_file = parameters['output_file']
@@ -412,7 +465,9 @@ class MainWidget(QWidget):
         """
         self.ui.combo_desc_balloon.setEnabled(new_state)
         self.ui.spin_desc_velocity.setEnabled(new_state)
+        self.setBalloonPicture(new_state)
         self.computeBalloonPerformance()
+        self.setWarningText()
 
     @Slot()
     def onChangeCheckCut(self, new_state):
@@ -421,6 +476,7 @@ class MainWidget(QWidget):
         """
         self.ui.spin_cut_altitude.setEnabled(new_state)
         self.ui.combo_cut_altitude_unit.setEnabled(new_state)
+        self.setWarningText()
 
     @Slot()
     def onChangeBalloonParameter(self, value):
@@ -428,6 +484,14 @@ class MainWidget(QWidget):
         Callback when a balloon parameter is changed.
         """
         self.computeBalloonPerformance()
+        self.setWarningText()
+
+    @Slot()
+    def onChangeCutAltitude(self, value):
+        """
+        Callback when cut altitude is changed.
+        """
+        self.setWarningText()
 
     @Slot()
     def onOutputFileSelector(self):
@@ -730,10 +794,12 @@ class OperatorWidget(QWidget):
             self.axis_battv.set_ylim(battv_range)
         self.ui.mpl_canvas.draw()
 
-    def setLanding(self, longitude, latitude, altitude, flight_range):
+    def setLanding(self, time, longitude, latitude, altitude, flight_range):
         """
         Set landing section of UI.
         """
+        self.ui.label_landing_time_value.setText(
+                '--' if altitude is None else '{}'.format(utils.roundSeconds(time)))
         self.ui.label_landing_longitude_value.setText(
                 '--' if longitude is None else '{:.5f}°'.format(longitude))
         self.ui.label_landing_latitude_value.setText(
@@ -924,7 +990,7 @@ class OperatorWidget(QWidget):
         flight_range = geog.distance(
                 [self.flight_parameters['launch_lon'], self.flight_parameters['launch_lat']],
                 [landing_lon, landing_lat]) / 1000.
-        self.setLanding(landing_lon, landing_lat, segment_descent.points[-1].elevation, flight_range)
+        self.setLanding(track.segments[-1].points[-1].time, landing_lon, landing_lat, segment_descent.points[-1].elevation, flight_range)
         track.segments.append(segment_descent)
         waypoints.append(gpxpy.gpx.GPXWaypoint(
                 landing_lat, landing_lon,

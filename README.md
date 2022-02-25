@@ -25,7 +25,7 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 * [matplotlib](https://www.matplotlib.org/) for live plots
 Usually, these can be installed with `pip`:
 ```
-pip install numpy scipy requests pygrib python-magic geog gpxpy simplekml
+pip install numpy scipy requests pygrib geog gpxpy simplekml
 ```
 and if needed
 ```
@@ -34,26 +34,42 @@ pip install paramiko
 pip install pyside6
 pip install matplotlib
 ```
-With Anaconda, packages are installed with `conda`:
+The package `srtm-python` is not available in pypi and has to be cloned from
+github (don't forget to set the PYTHONPATH so that it is found).
+
+With the [Anaconda](https://www.anaconda.com/) Python distribution, packages
+are installed with `conda`, but some are not available in the standard channel.
+Thus:
 ```
 conda update --all
-conda install numpy scipy requests gpxpy simplekml
-conda install -c conda-forge pygrib
-pip install python-magic python-magic-bin geog
+conda install numpy scipy requests
+conda install -c conda-forge gpxpy simplekml pygrib
+pip install geog
 ```
 and if needed
 ```
-conda install folium
-conda install paramiko
+conda install -c conda-forge folium
+conda install -c conda-forge paramiko
 pip install pyside6
 conda install matplotlib
 ```
-The package `srtm-python` is not available in pypi and has to be cloned from github.
-
-On Linux, however, it is advisable to install Python packages through the system's
-packaging system. On Debian-based distributions (e.g. Ubuntu) the command is
+On Windows, if you encounter an error message like
 ```
-sudo apt install python3-numpy python3-scipy python3-requests python3-grib python3-magic python3-gpxpy
+qt.qpa.plugin: Could not find the Qt platform plugin "windows" in ""
+This application failed to start because no Qt platform plugin could be initialized. Reinstalling the application may fix this problem.
+```
+the solution is to tell Python where to find it via the environment variable
+`QT_QPA_PLATFORM_PLUGIN_PATH`, e.g.
+```
+set QT_QPA_PLATFORM_PLUGIN_PATH=C:\ProgramData\Anaconda3\Lib\site-packages\PySide6\plugins
+```
+in the command line, or set the environment variable in the system settings.
+Please note that the path can vary with your installation.
+
+On Linux, it is advisable to install Python packages through the system's
+packaging system. On Debian-based distributions (e.g. Ubuntu), the command is
+```
+sudo apt install python3-numpy python3-scipy python3-requests python3-grib python3-gpxpy
 ```
 and if needed
 ```
@@ -62,6 +78,15 @@ sudo apt install python3-matplotlib
 Some Python packages are not available through the Linux packaging system.
 These can either be installed with pip or by cloning the repositories and setting
 the PYTHONPATH.
+
+
+## Installation
+
+Clone the source from the repository. If you want to run the graphical user
+interface, you have to compile some files. To do so, go into the
+`balloon_operator` directory and run `make_gui.bat`. This needs
+[Inkscape](https://inkscape.org/) to convert the app icon and Pyside6 (see
+above under Dependencies) to compile the UI.
 
 
 ## Data
