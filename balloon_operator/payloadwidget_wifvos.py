@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Parse and display payload-specific message entries for WIFVOS.
+Parse and display payload-specific message entries for WIFVOS (Water vapour Isotopologue Flask sampling for the Validation Of Satellite data).
 
 Created on Mon Sep  6 17:50:22 2021
 @author: Andreas Schneider <andreas.schneider@fmi.fi>
@@ -12,13 +12,14 @@ import numpy as np
 
 def parseUserval1(userval1):
     """
-    Parse Cutter, heating and pump status from USERVAL1 field.
+    Parse cutter, heating, pump and event status from USERVAL1 field.
     """
     cutter1_status = (userval1 & 1) == 1
     cutter2_status = (userval1 & 2) == 2
     heating_status = (userval1 & 4) == 4
     pump_status = (userval1 & 8) == 8
-    return cutter1_status, cutter2_status, heating_status, pump_status
+    event_status = (userval1 & 16) == 16
+    return cutter1_status, cutter2_status, heating_status, pump_status, event_status
 
 def parseUserval5(userval5):
     """
@@ -59,6 +60,8 @@ def setPayloadData(payload_widget, data):
     widget_inlet = payload_widget.findChild(QLabel, 'label_inlet_status')
     widget_outlet = payload_widget.findChild(QLabel, 'label_outlet_status')
     widget_pump = payload_widget.findChild(QLabel, 'label_pump_status')
+    widget_heating_temperature = payload_widget.findChild(QLabel, 'label_heating_temperature_value')
+    widget_event = payload_widget.findChild(QLabel, 'label_event_value')
     if 'USERVAL5' in data:
         valve_text = parseUserval5(data['USERVAL5'])
         widget_inlet.setText(valve_text[0])
@@ -67,29 +70,39 @@ def setPayloadData(payload_widget, data):
         widget_inlet.setText('??')
         widget_outlet.setText('??')
     if 'USERVAL1' in data:
-        cutter1_status, cutter2_status, heating_status, pump_status = parseUserval1(data['USERVAL1'])
+        cutter1_status, cutter2_status, heating_status, pump_status, event_status = parseUserval1(data['USERVAL1'])
         widget_pump.setText(statusText(pump_status))
+        widget_event.setText('yes' if event_status else 'no')
     else:
         widget_pump.setText('??')
+        widget_event.setText('??')
+    if 'USERVAL2' in data:
+        widget_heating_temperature.setText('{} °C'.format(data['USERVAL2']))
+    else:
+        widget_heating_temperature.setText('?? °C')
 
 if __name__ == '__main__':
     """
     Script main for testing purposes.
     """
     import argparse
-    from balloon_operator import sbd_receiver
+    from balloon_operator import message_sbd
     parser = argparse.ArgumentParser('WIFVOS payload message parser')
     parser.add_argument('-m', '--message', required=False, default=None, help='Translate binary message given as hex string')
     args = parser.parse_args()
     if args.message:
-        data = sbd_receiver.parseSbd(sbd_receiver.asc2bin(args.message))
+        message_handler = message_sbd.MessageSbd()
+        data = message_handler.decodeMessage(message_sbd.MessageSbd.asc2bin(args.message))
         print(data)
         if 'USERVAL1' in data:
-            cutter1_status, cutter2_status, heating_status, pump_status = parseUserval1(data['USERVAL1'])
+            cutter1_status, cutter2_status, heating_status, pump_status, event_status = parseUserval1(data['USERVAL1'])
             print('Cutters: {}, {}'.format(cutterText(cutter1_status), cutterText(cutter2_status)))
             print('Heating: {}'.format(statusText(heating_status)))
             print('Pump: {}'.format(statusText(pump_status)))
+            print('Is {} event message.'.format('an' if event_status else 'no'))
         if 'USERVAL5' in data:
             valve_text = parseUserval5(data['USERVAL5'])
             print('Inlet:  {}'.format(valve_text[0]))
             print('Outlet: {}'.format(valve_text[1]))
+        if 'USERVAL2' in data:
+            print('Battery temperature: {} °C'.format(data['USERVAL2']))
