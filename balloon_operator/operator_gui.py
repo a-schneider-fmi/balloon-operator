@@ -110,7 +110,7 @@ class MainWidget(QWidget):
         self.operator_widget = OperatorWidget()
         self.operator_widget.stopLiveOperation.connect(self.onStopLiveOperation)
 
-        self.ui.dt_launch_datetime.setDateTime(datetime.datetime.utcnow())
+        self.ui.dt_launch_datetime.setDateTime(utils.roundSeconds(datetime.datetime.utcnow()))
         for fill_gas in filling.FillGas:
             self.ui.combo_fill_gas.addItem(filling.fill_gas_names[fill_gas], fill_gas)
         self.ui.edit_output_file.setText(os.path.join(tempfile.gettempdir(), 'trajectory.gpx'))
@@ -201,11 +201,19 @@ class MainWidget(QWidget):
             self.ui.combo_parachute.setCurrentText(config['payload']['parachute_type'])
             self.ui.spin_asc_velocity.setValue(config['payload'].getfloat('ascent_velocity'))
             self.ui.spin_desc_velocity.setValue(config['payload'].getfloat('descent_velocity', fallback=0.))
-            self.ui.spin_cut_altitude.setValue(config['payload'].getfloat('cut_altitude', fallback=0.))
             if 'cut_altitude' in config['payload']:
+                self.ui.spin_cut_altitude.setValue(config['payload'].getfloat('cut_altitude', fallback=0.))
                 self.ui.check_cut.setChecked(True)
                 self.ui.spin_cut_altitude.setEnabled(True)
                 self.ui.combo_cut_altitude_unit.setCurrentIndex(0)
+            elif 'cut_pressure' in config['payload']:
+                self.ui.spin_cut_altitude.setValue(config['payload'].getfloat('cut_pressure', fallback=0.))
+                self.ui.check_cut.setChecked(True)
+                self.ui.spin_cut_altitude.setEnabled(True)
+                self.ui.combo_cut_altitude_unit.setCurrentIndex(1)
+            else:
+                self.ui.spin_cut_altitude.setEnabled(False)
+                self.ui.spin_cut_altitude.setValue(0.)
         except KeyError:
             QMessageBox.warning(self, 'Loading payload data', 'The file misses essential information.')
         self.blockSignals(False)
@@ -243,7 +251,7 @@ class MainWidget(QWidget):
         """
         Set launch datetime to now.
         """
-        self.ui.dt_launch_datetime.setDateTime(datetime.datetime.utcnow())
+        self.ui.dt_launch_datetime.setDateTime(utils.roundSeconds(datetime.datetime.utcnow()))
 
     def computeBalloonPerformance(self):
         """
@@ -887,7 +895,9 @@ class OperatorWidget(QWidget):
             is_invalid = np.zeros(len(messages), dtype=bool)
             for ind_msg in range(len(messages)):
                 msg = messages[ind_msg]
-                if not trajectory_predictor.checkGeofence(
+                if 'LON' not in msg or 'LAT' not in msg or 'ALT' not in msg:
+                    is_invalid[ind_msg] = True
+                elif not trajectory_predictor.checkGeofence(
                         msg['LON'], msg['LAT'],
                         self.flight_parameters['launch_lon'],
                         self.flight_parameters['launch_lat'],
@@ -924,7 +934,12 @@ class OperatorWidget(QWidget):
             ind_top = trajectory_predictor.detectDescent(self.segment_tracked, self.flight_parameters['launch_alt'])
             print('ind_top', ind_top) # DEBUG
             if ind_top is not None: # descent detected
-                self.top_point = message.Message.message2waypoint(msg, name='Ceiling')
+                top_track_point = self.segment_tracked.points[ind_top]
+                self.top_point = gpxpy.gpx.GPXWaypoint(
+                            top_track_point.latitude, top_track_point.longitude,
+                            elevation=top_track_point.elevation,
+                            time=top_track_point.time,
+                            name='Ceiling')
                 self.ui.label_ascent_status_value.setText('descending')
         if self.segment_tracked.points[-1].elevation > np.maximum(self.flight_parameters['top_altitude'], self.top_point.elevation if self.top_point is not None else 0.):
             logging.info('Balloon above top altitude. Assuming descent is imminent.')
@@ -990,7 +1005,7 @@ class OperatorWidget(QWidget):
         flight_range = geog.distance(
                 [self.flight_parameters['launch_lon'], self.flight_parameters['launch_lat']],
                 [landing_lon, landing_lat]) / 1000.
-        self.setLanding(track.segments[-1].points[-1].time, landing_lon, landing_lat, segment_descent.points[-1].elevation, flight_range)
+        self.setLanding(segment_descent.points[-1].time, landing_lon, landing_lat, segment_descent.points[-1].elevation, flight_range)
         track.segments.append(segment_descent)
         waypoints.append(gpxpy.gpx.GPXWaypoint(
                 landing_lat, landing_lon,

@@ -304,8 +304,12 @@ def predictDescent(top_datetime, top_lon, top_lat, top_height, descent_velocity,
         time_descent, alt_descent, velocity_descent = parachute.parachuteDescent(top_height, timestep, payload_weight, parachute_parameters, payload_area, initial_velocity=initial_velocity)
         datetime_descent = top_datetime + np.array([datetime.timedelta(seconds=this_time) for this_time in time_descent])
     segment_descent = predictTrajectory(datetime_descent, alt_descent, model_data, top_lon, top_lat)
-    landing_lon = segment_descent.points[-1].longitude
-    landing_lat = segment_descent.points[-1].latitude
+    if len(segment_descent.points) > 0:
+        landing_lon = segment_descent.points[-1].longitude
+        landing_lat = segment_descent.points[-1].latitude
+    else:
+        landing_lon = top_lon
+        landing_lat = top_lat
     return segment_descent, landing_lon, landing_lat
 
 
@@ -533,7 +537,7 @@ def liveForecast(
 
     # Read model data.
     if launch_datetime is None:
-        launch_datetime = datetime.datetime.utcnow()
+        launch_datetime = utils.roundSeconds(datetime.datetime.utcnow())
     filelist = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path, timesteps=7)
     if filelist is None or len(filelist) == 0:
         logging.critical('Cannot download model data.')
@@ -1087,7 +1091,7 @@ if __name__ == "__main__":
     parser.add_argument('--log', required=False, default='INFO', help='Log level')
     args = parser.parse_args()
     if args.launchtime == 'now':
-        launch_datetime = datetime.datetime.utcnow()
+        launch_datetime = utils.roundSeconds(datetime.datetime.utcnow())
     else:
         launch_datetime = datetime.datetime.fromisoformat(args.launchtime)
     if args.position is not None:
