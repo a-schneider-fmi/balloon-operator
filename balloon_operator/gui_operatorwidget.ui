@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>931</width>
-    <height>880</height>
+    <height>926</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -89,155 +89,169 @@
         <string>Current position and health</string>
        </property>
        <layout class="QFormLayout" name="layout_cur_pos">
-        <item row="0" column="0">
+        <item row="1" column="0">
          <widget class="QLabel" name="label_cur_datetime">
           <property name="text">
            <string>Time</string>
           </property>
          </widget>
         </item>
-        <item row="0" column="1">
+        <item row="1" column="1">
          <widget class="QLabel" name="label_cur_datetime_value">
           <property name="text">
            <string>??.??.???? ??:??:??</string>
           </property>
          </widget>
         </item>
-        <item row="1" column="0">
+        <item row="2" column="0">
          <widget class="QLabel" name="label_cur_longitude">
           <property name="text">
            <string>Longitude</string>
           </property>
          </widget>
         </item>
-        <item row="1" column="1">
+        <item row="2" column="1">
          <widget class="QLabel" name="label_cur_longitude_value">
           <property name="text">
            <string>??°</string>
           </property>
          </widget>
         </item>
-        <item row="2" column="0">
+        <item row="3" column="0">
          <widget class="QLabel" name="label_cur_latitude">
           <property name="text">
            <string>Latitude</string>
           </property>
          </widget>
         </item>
-        <item row="2" column="1">
+        <item row="3" column="1">
          <widget class="QLabel" name="label_cur_latitude_value">
           <property name="text">
            <string>??°</string>
           </property>
          </widget>
         </item>
-        <item row="3" column="0">
+        <item row="4" column="0">
          <widget class="QLabel" name="label_cur_altitude">
           <property name="text">
            <string>Altitude</string>
           </property>
          </widget>
         </item>
-        <item row="3" column="1">
+        <item row="4" column="1">
          <widget class="QLabel" name="label_cur_altitude_value">
           <property name="text">
            <string>?? m</string>
           </property>
          </widget>
         </item>
-        <item row="4" column="0">
+        <item row="5" column="0">
          <widget class="QLabel" name="label_cur_pressure">
           <property name="text">
            <string>Pressure</string>
           </property>
          </widget>
         </item>
-        <item row="4" column="1">
+        <item row="5" column="1">
          <widget class="QLabel" name="label_cur_pressure_value">
           <property name="text">
            <string>?? hPa</string>
           </property>
          </widget>
         </item>
-        <item row="7" column="0">
+        <item row="8" column="0">
          <widget class="QLabel" name="label_cur_battery">
           <property name="text">
            <string>Battery</string>
           </property>
          </widget>
         </item>
-        <item row="7" column="1">
+        <item row="8" column="1">
          <widget class="QLabel" name="label_cur_battery_value">
           <property name="text">
            <string>?? V</string>
           </property>
          </widget>
         </item>
-        <item row="5" column="0">
+        <item row="6" column="0">
          <widget class="QLabel" name="label_cur_temperature">
           <property name="text">
            <string>Temperature</string>
           </property>
          </widget>
         </item>
-        <item row="5" column="1">
+        <item row="6" column="1">
          <widget class="QLabel" name="label_cur_temperature_value">
           <property name="text">
            <string>?? °C</string>
           </property>
          </widget>
         </item>
-        <item row="6" column="0">
+        <item row="7" column="0">
          <widget class="QLabel" name="label_cur_humidity">
           <property name="text">
            <string>Rel. humidity</string>
           </property>
          </widget>
         </item>
-        <item row="6" column="1">
+        <item row="7" column="1">
          <widget class="QLabel" name="label_cur_humidity_value">
           <property name="text">
            <string>?? %</string>
           </property>
          </widget>
         </item>
-        <item row="8" column="0">
+        <item row="9" column="0">
          <widget class="QLabel" name="label_cur_cutter1">
           <property name="text">
            <string>Cutter 1</string>
           </property>
          </widget>
         </item>
-        <item row="8" column="1">
+        <item row="9" column="1">
          <widget class="QLabel" name="label_cur_cutter1_value">
           <property name="text">
            <string>??</string>
           </property>
          </widget>
         </item>
-        <item row="9" column="0">
+        <item row="10" column="0">
          <widget class="QLabel" name="label_cur_cutter2">
           <property name="text">
            <string>Cutter 2</string>
           </property>
          </widget>
         </item>
-        <item row="9" column="1">
+        <item row="10" column="1">
          <widget class="QLabel" name="label_cur_cutter2_value">
           <property name="text">
            <string>??</string>
           </property>
          </widget>
         </item>
-        <item row="10" column="0">
+        <item row="11" column="0">
          <widget class="QLabel" name="label_cur_heating">
           <property name="text">
            <string>Heating</string>
           </property>
          </widget>
         </item>
-        <item row="10" column="1">
+        <item row="11" column="1">
          <widget class="QLabel" name="label_cur_heating_value">
+          <property name="text">
+           <string>??</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QLabel" name="label_id">
+          <property name="text">
+           <string>Tracker ID</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QLabel" name="label_id_value">
           <property name="text">
            <string>??</string>
           </property>

@@ -688,6 +688,10 @@ class OperatorWidget(QWidget):
         except ValueError as err:
             QMessageBox.critical(self, 'Configuration error', err)
         self.loadIridiumList(config_file)
+        if isinstance(self.message_handler,message_sbd.MessageSbd):
+            self.ui.label_id.setText('IMEI')
+        else:
+            self.ui.label_id.setText('Tracker ID')
 
     def loadIridiumList(self, config_file):
         """
@@ -707,7 +711,7 @@ class OperatorWidget(QWidget):
 
     def setStandardData(self, data):
         """
-        Sets standard data from a received IRIDIUM message.
+        Sets standard data from a received message.
         """
         if 'DATETIME' in data:
             self.ui.label_cur_datetime_value.setText('{}'.format(data['DATETIME'].isoformat()))
@@ -749,6 +753,10 @@ class OperatorWidget(QWidget):
             self.ui.label_cur_cutter1_value.setText('??')
             self.ui.label_cur_cutter2_value.setText('??')
             self.ui.label_cur_heating_value.setText('??')
+        if 'IMEI' in data:
+            self.ui.label_id_value.setText('{}'.format(data['IMEI']))
+        else:
+            self.ui.label_id_value.setText('??')
 
     def setAdvancedData(self, data):
         """
@@ -884,7 +892,7 @@ class OperatorWidget(QWidget):
 
     def queryMessages(self):
         """
-        Query new IRIDIUM messages from server.
+        Query new messages from server.
         """
         from_address = self.ui.combo_receive_imei.currentData() + '@rockblock.rock7.com'
         print("Querying messages from {} ...".format(from_address)) # DEBUG

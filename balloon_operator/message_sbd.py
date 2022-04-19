@@ -289,6 +289,11 @@ class MessageSbd(message.Message):
     
         @return data translated message as dictionary
         """
+        if isinstance(msg,tuple) and len(msg) == 2:
+            imei = msg[0]
+            msg = msg[1]
+        else:
+            imei = None
         data = {}
         if msg[0] == TrackerMessageFields.STX.value:
             ind = 0
@@ -324,6 +329,8 @@ class MessageSbd(message.Message):
         cs_a, cs_b = self.checksum(msg[:ind])
         assert (msg[ind] == cs_a), 'Checksum mismatch'
         assert (msg[ind+1] == cs_b), 'Checksum mismatch'
+        if imei is not None:
+            data['IMEI'] = imei
         return data
 
 
@@ -399,9 +406,9 @@ class MessageSbd(message.Message):
         return self.imap is not None
 
 
-    def extractEmailAttachment(self, num):
+    def extractEmailData(self, num):
         """
-        Extract SBD message attachment(s) from a given email via IMAP.
+        Extract IMEI and SBD message attachment(s) from a given email via IMAP.
         """
         sbd_list = []
         typ, data = self.imap.fetch(num, '(RFC822)')
@@ -411,19 +418,29 @@ class MessageSbd(message.Message):
         else:
             msg = email.message_from_bytes(raw_message)
         # Download attachments
+        imei = None
         for part in msg.walk():
-            if part.get_content_maintype() == 'multipart':
+            if part.get_content_maintype() == 'text':
+                body = part.get_payload(decode=True).decode()
+                for line in body.splitlines():
+                    if line.startswith('IMEI: '):
+                        imei = line[6:]
+            elif part.get_content_maintype() == 'multipart':
                 continue
-            if part.get('Content-Disposition') is None:
+            elif part.get('Content-Disposition') is None:
                 continue
-            filename = part.get_filename()
-            if bool(filename):
-                _, fileext = os.path.splitext(filename)
-                if fileext in ['.sbd', '.bin']:
-                    sbd_list.append(part.get_payload(decode=True))
-                else:
-                    logging.warning('receiveMessages: unrecognized file extension {} of attachment.'.format(fileext))
-        return sbd_list
+            else:
+                filename = part.get_filename()
+                if bool(filename):
+                    _, fileext = os.path.splitext(filename)
+                    if fileext in ['.sbd', '.bin']:
+                        sbd_list.append(part.get_payload(decode=True))
+                    else:
+                        logging.warning('receiveMessages: unrecognized file extension {} of attachment.'.format(fileext))
+        if imei is None:
+            return sbd_list
+        else:
+            return [(imei, sbd) for sbd in sbd_list]
         
     
     def receiveMessages(self, from_address=None, unseen_only=True, first_only=False):
@@ -449,12 +466,12 @@ class MessageSbd(message.Message):
         matches = messages[0].split()
         if first_only:
             if len(matches) > 0:
-                return self.extractEmailAttachment(matches[0])
+                return self.extractEmailData(matches[0])
             else:
                 return []
         else:
             for num in matches:
-                sbd_list += self.extractEmailAttachment(num)
+                sbd_list += self.extractEmailData(num)
             return sbd_list
 
 
