@@ -23,6 +23,8 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 * [folium](https://github.com/python-visualization/folium) for creating web pages
 * [pyside6](https://doc.qt.io/qtforpython/) for the graphical user interface
 * [matplotlib](https://www.matplotlib.org/) for live plots
+* [cartopy](https://scitools.org.uk/cartopy/docs/latest/) for exporting a map with the trajectory
+* [reverse_geocode](https://github.com/richardpenman/reverse_geocode/) if boundary crossing shall be determined
 Usually, these can be installed with `pip`:
 ```
 pip install numpy scipy requests pygrib geog gpxpy simplekml
@@ -33,6 +35,8 @@ pip install folium
 pip install paramiko
 pip install pyside6
 pip install matplotlib
+pip install cartopy
+pip install reverse_geocode
 ```
 The package `srtm-python` is not available in pypi and has to be cloned from
 github (don't forget to set the PYTHONPATH so that it is found).
@@ -52,6 +56,8 @@ conda install -c conda-forge folium
 conda install -c conda-forge paramiko
 pip install pyside6
 conda install matplotlib
+conda install cartopy
+pip install reverse_geocode
 ```
 On Windows, if you encounter an error message like
 ```
@@ -73,7 +79,7 @@ sudo apt install python3-numpy python3-scipy python3-requests python3-grib pytho
 ```
 and if needed
 ```
-sudo apt install python3-matplotlib
+sudo apt install python3-matplotlib python3-cartopy
 ```
 Some Python packages are not available through the Linux packaging system.
 These can either be installed with pip or by cloning the repositories and setting

@@ -115,6 +115,8 @@ class MainWidget(QWidget):
             self.ui.combo_fill_gas.addItem(filling.fill_gas_names[fill_gas], fill_gas)
         self.ui.edit_output_file.setText(os.path.join(tempfile.gettempdir(), 'trajectory.gpx'))
         self.ui.edit_webpage_file.setText(os.path.join(tempfile.gettempdir(), 'trajectory.html'))
+        self.ui.edit_map_file.setText(os.path.join(tempfile.gettempdir(), 'trajectory.png'))
+        self.ui.edit_tsv_file.setText(os.path.join(tempfile.gettempdir(), 'trajectory.tsv'))
         self.balloon_parameter_list = np.zeros((3,0), dtype=[('weight', 'f8'), ('burst_diameter', 'f8'), ('drag_coefficient', 'f8')])
         self.balloon_parameter_file = None
         self.parachute_parameter_list = np.zeros((3,0), dtype=[('name', 'U25'), ('diameter', 'f8'), ('drag_coefficient', 'f8')])
@@ -140,6 +142,10 @@ class MainWidget(QWidget):
         self.ui.button_output_file_dialog.clicked.connect(self.onOutputFileSelector)
         self.ui.check_webpage.stateChanged.connect(self.onChangeCheckWebpage)
         self.ui.button_webpage_file_dialog.clicked.connect(self.onWebpageFileSelector)
+        self.ui.check_map.stateChanged.connect(self.onChangeCheckMap)
+        self.ui.button_map_file_dialog.clicked.connect(self.onMapFileSelector)
+        self.ui.check_tsv.stateChanged.connect(self.onChangeCheckTsv)
+        self.ui.button_tsv_file_dialog.clicked.connect(self.onTsvFileSelector)
         self.ui.button_forecast.clicked.connect(self.onForecast)
         self.ui.button_live_operation.clicked.connect(self.onLiveOperation)
 
@@ -334,7 +340,7 @@ class MainWidget(QWidget):
             filename = 'gui_drawing_one_balloon.svg'
         self.ui.widget_drawing.load(os.path.join(os.path.dirname(__file__),filename))
 
-    def setLanding(self, time, longitude, latitude, altitude, flight_range):
+    def setLanding(self, time, longitude, latitude, altitude, flight_range, border_crossing):
         """
         Set result section of UI.
         """
@@ -348,6 +354,8 @@ class MainWidget(QWidget):
                 '--' if altitude is None else '{:.0f} m'.format(altitude))
         self.ui.label_range_value.setText(
                 '--' if flight_range is None else '{:.0f} km'.format(flight_range))
+        self.ui.label_border_crossing_value.setText(
+                '??' if border_crossing is None else '{}'.format(border_crossing))
 
     def getCutAltitude(self):
         """
@@ -373,7 +381,9 @@ class MainWidget(QWidget):
                 'launch_alt': self.ui.spin_launch_altitude.value(),
                 'launch_datetime': self.ui.dt_launch_datetime.dateTime().toPython(),
                 'output_file': self.ui.edit_output_file.text(),
-                'webpage_file': self.ui.edit_webpage_file.text() if self.ui.check_webpage.isChecked() else None
+                'webpage_file': self.ui.edit_webpage_file.text() if self.ui.check_webpage.isChecked() else None,
+                'map_file': self.ui.edit_map_file.text() if self.ui.check_map.isChecked() else None,
+                'tsv_file': self.ui.edit_tsv_file.text() if self.ui.check_tsv.isChecked() else None
                 }
         cut_altitude = self.getCutAltitude()
         if cut_altitude is not None:
@@ -411,7 +421,14 @@ class MainWidget(QWidget):
             parameters['parachute_parameters'],
             model_data, self.timestep, 
             descent_velocity=parameters['descent_velocity'])
-        self.setLanding(track.segments[-1].points[-1].time, track.segments[-1].points[-1].longitude, track.segments[-1].points[-1].latitude, track.segments[-1].points[-1].elevation, flight_range)
+        is_abroad = trajectory_predictor.checkBorderCrossing(track)
+        if is_abroad[-1]:
+            border_crossing = 'landing abroad'
+        elif is_abroad.any():
+            border_crossing = 'crossing foreign airspace'
+        else:
+            border_crossing = 'no'
+        self.setLanding(track.segments[-1].points[-1].time, track.segments[-1].points[-1].longitude, track.segments[-1].points[-1].latitude, track.segments[-1].points[-1].elevation, flight_range, border_crossing)
 
         # Save resulting trajectory.
         output_file = parameters['output_file']
@@ -422,6 +439,10 @@ class MainWidget(QWidget):
             trajectory_predictor.writeGpx(track, output_file, waypoints=waypoints, description=track.description)
         if parameters['webpage_file']:
             trajectory_predictor.createWebpage(track, waypoints, parameters['webpage_file'])
+        if parameters['map_file']:
+            trajectory_predictor.exportImage(track, parameters['map_file'], waypoints=waypoints)
+        if parameters['tsv_file']:
+            trajectory_predictor.exportTsv(track, parameters['tsv_file'], top_height=parameters['top_altitude'])
         return {'lon': track.segments[-1].points[-1].longitude,
                 'lat': track.segments[-1].points[-1].latitude,
                 'alt': track.segments[-1].points[-1].elevation,
@@ -519,12 +540,8 @@ class MainWidget(QWidget):
         """
         Callback when checkbox whether to create a webpage is changed.
         """
-        if state:
-            self.ui.edit_webpage_file.setEnabled(True)
-            self.ui.button_webpage_file_dialog.setEnabled(True)
-        else:
-            self.ui.edit_webpage_file.setEnabled(False)
-            self.ui.button_webpage_file_dialog.setEnabled(False)
+        self.ui.edit_webpage_file.setEnabled(state)
+        self.ui.button_webpage_file_dialog.setEnabled(state)
 
     @Slot()
     def onWebpageFileSelector(self):
@@ -537,6 +554,46 @@ class MainWidget(QWidget):
             if fileext != '.html' and fileext != '.htm':
                 webpage_file += '.html'
             self.ui.edit_webpage_file.setText(webpage_file)
+
+    @Slot()
+    def onChangeCheckMap(self, state):
+        """
+        Callback when checkbox whether to create a map is changed.
+        """
+        self.ui.edit_map_file.setEnabled(state)
+        self.ui.button_map_file_dialog.setEnabled(state)
+
+    @Slot()
+    def onMapFileSelector(self):
+        """
+        Callback when the button to select a map file name is clicked.
+        """
+        filename, filetype = QFileDialog.getSaveFileName(self, 'Save map image', os.path.dirname(self.ui.edit_map_file.text()), 'Images (*.png)')
+        if filename:
+            fileext = os.path.splitext(filename)[1].lower()
+            if fileext != '.png':
+                filename += '.png'
+            self.ui.edit_map_file.setText(filename)
+
+    @Slot()
+    def onChangeCheckTsv(self, state):
+        """
+        Callback when checkbox whether to create a tsv ACSII output file is changed.
+        """
+        self.ui.edit_tsv_file.setEnabled(state)
+        self.ui.button_tsv_file_dialog.setEnabled(state)
+
+    @Slot()
+    def onTsvFileSelector(self):
+        """
+        Callback when the button to select a tsv output file name is clicked.
+        """
+        filename, filetype = QFileDialog.getSaveFileName(self, 'Save tsv', os.path.dirname(self.ui.edit_tsv_file.text()), 'Tabular separated values (*.tsv)')
+        if filename:
+            fileext = os.path.splitext(filename)[1].lower()
+            if fileext != '.tsv':
+                filename += '.tsv'
+            self.ui.edit_tsv_file.setText(filename)
 
     @Slot()
     def forecastComplete(self):

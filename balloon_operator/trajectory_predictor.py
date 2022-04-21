@@ -403,6 +403,24 @@ def checkGeofence(cur_lon, cur_lat, launch_lon, launch_lat, radius):
         return True
 
 
+def checkBorderCrossing(track):
+    """
+    Checks whether a flight track crosses a country border.
+
+    @param track flight track as gpxpy.gpx.GPXTrack object
+    @return is_abroad array of booleans indicating whether a track point is abroad
+    """
+    import reverse_geocode
+    coords = []
+    for segment in track.segments:
+        for point in segment.points:
+            coords.append((point.latitude, point.longitude))
+    geocodes = reverse_geocode.search(coords)
+    countries = np.array([geocode['country'] for geocode in geocodes])
+    is_abroad = (countries != countries[0])
+    return is_abroad
+
+
 def detectDescent(segment_tracked, launch_altitude):
     """
     Detect whether descent has begun (by cutting or bursting of the balloon).
@@ -918,7 +936,95 @@ def createWebpage(track, waypoints, output_file, upload=None, hourly=None, track
     return
 
 
-def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=False, live=None, launch_pos=None, output_file=None, kml_output=None, webpage=None, upload=None):
+def exportImage(track, output_file, waypoints=None, bb=None):
+    """
+    Export an image file with a map and the predicted track.
+
+    @param track gpxpy.gpx.GPXTrack object with trajectory
+    @param output_file the filename to which the map shall be written
+    @param waypoints list of gpxpy.gpx.GPXWaypoint objects to be included in the map
+    """
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+
+    # Prepare data.
+    lons = []
+    lats = []
+    for segment in track.segments:
+        for point in segment.points:
+            lons.append(point.longitude)
+            lats.append(point.latitude)
+    launch_lat = track.segments[0].points[0].latitude
+    launch_lon = track.segments[0].points[0].longitude
+    launch_time = track.segments[0].points[0].time
+
+    if bb is None:
+        lon_range, lat_range = download_model_data.getModelArea(lons[0], lats[0], radius=300.)
+        bb = lon_range + lat_range
+
+    # Do plot.
+    plt.figure(figsize=(8,8))
+    ax = plt.axes(projection=ccrs.Stereographic(central_latitude=launch_lat, central_longitude=launch_lon))
+    ax.set_extent(bb, crs=ccrs.PlateCarree())
+    ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False)
+    ax.add_feature(cfeature.LAND)
+    ax.add_feature(cfeature.OCEAN)
+    ax.add_feature(cfeature.LAKES)
+    ax.add_feature(cfeature.RIVERS)
+    ax.add_feature(cfeature.COASTLINE, edgecolor=cfeature.COLORS['water'])
+    ax.add_feature(cfeature.BORDERS, edgecolor='red')
+    plt.plot(lons, lats, transform=ccrs.Geodetic(), color='#00AA00')
+    if waypoints is not None:
+        for waypoint in waypoints:
+            if waypoint.name.lower()=='launch':
+                color = 'black'
+            elif waypoint.name.lower() in ['burst','ceiling']:
+                color = 'white'
+            elif waypoint.name.lower().startswith('landing'):
+                color = 'red'
+            else:
+                color = None
+            plt.plot(waypoint.longitude, waypoint.latitude, transform=ccrs.Geodetic(), marker='o', color=color)
+    plt.title('Balloon trajectory forecast for {}'.format(launch_time.strftime('%d %b %Y %H:%M UTC')))
+    logging.info('Writing {}'.format(output_file))
+    plt.savefig(output_file, dpi=300)
+    plt.close()
+    return
+
+
+def exportTsv(track, output_file, top_height=None, border_check=True):
+    """
+    Export a track in tabular separated values (tsv) ASCII format.
+
+    @param track gpxpy.gpx.GPXTrack object with trajectory
+    @param output_file the filename to which data shall be written
+    """
+    launch_point = track.segments[0].points[0]
+    landing_point = track.segments[-1].points[-1]
+    flight_range = geog.distance((launch_point.longitude, launch_point.latitude), (landing_point.longitude, landing_point.latitude)) / 1000.
+    azimuth = geog.course((launch_point.longitude, launch_point.latitude), (landing_point.longitude, landing_point.latitude), bearing=True)
+    logging.info('Writing tsv file {}'.format(output_file))
+    with open(output_file, 'w') as fd:
+        fd.write('Launch: {} UTC\n'.format(launch_point.time.strftime('%d %b %Y %H:%M')))
+        fd.write('Landing: {:.4f}°N, {:.4f}°E at {} UTC\n'.format(landing_point.latitude, landing_point.longitude, landing_point.time.strftime('%H:%M')))
+        fd.write('Distance: {:.0f} km, azimuth: {:.0f}°\n'.format(flight_range, azimuth))
+        if top_height is not None:
+            fd.write('Max. altitude: {:.0f} m\n'.format(top_height))
+        if border_check:
+            is_abroad = checkBorderCrossing(track)
+            fd.write('Border is {}crossed.\n'.format('' if is_abroad.any() else 'not '))
+        fd.write('\n')
+        fd.write('Time (UTC)\tLongitude (°E)\tLatitude (°N)\tAltitude (m)\n')
+        for segment in track.segments:
+            for point in segment.points:
+                fd.write('{}\t{:.4f}\t{:.4f}\t{:.0f}\n'.format(point.time.strftime('%H:%M:%S'), point.longitude, point.latitude, point.elevation))
+    return
+
+
+def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=False, live=None, launch_pos=None, output_file=None, kml_output=None, webpage=None, image=None, bb=None, tsv=None, upload=None):
     """
     Main function to make a trajectory prediction from a configuration file.
 
@@ -1072,6 +1178,10 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
             writeGpx(track, output_file, waypoints=waypoints, description=track.description, upload=upload)
         if webpage:
             createWebpage(track, waypoints, webpage, upload=upload)
+        if image:
+            exportImage(track, image, waypoints=waypoints, bb=bb)
+        if tsv:
+            exportTsv(track, tsv, top_height=top_height)
 
     return
 
@@ -1086,6 +1196,9 @@ if __name__ == "__main__":
     parser.add_argument('-l', '--live', required=False, nargs='?', default=None, const='comm.ini', help='Do a live prediction')
     parser.add_argument('-k', '--kml', required=False, nargs='?', default=None, const=True, help='Create output in KML format, optionally with network link')
     parser.add_argument('-w', '--webpage', required=False, default=None, help='Create interactive web page with track and export to file')
+    parser.add_argument('-g', '--image', required=False, default=None, help='Create an image of a map with the track')
+    parser.add_argument('-b', '--bb', required=False, default=None, help='Bounding box for map')
+    parser.add_argument('-x', '--export-tsv', required=False, default=None, help='Export trajectory in tsv format')
     parser.add_argument('-u', '--upload', required=False, default=None, help='Upload results to web server')
     parser.add_argument('-o', '--output', required=False, default=None, help='Output file name')
     parser.add_argument('--log', required=False, default='INFO', help='Log level')
@@ -1102,4 +1215,4 @@ if __name__ == "__main__":
     if not isinstance(numeric_level, int):
         raise ValueError('Invalid log level: {}'.format(args.log))
     logging.basicConfig(level=numeric_level)
-    main(launch_datetime, config_file=args.ini, launch_pos=launch_pos, descent_only=args.descent_only, hourly=args.timely, live=args.live, output_file=args.output, kml_output=args.kml, webpage=args.webpage, upload=args.upload)
+    main(launch_datetime, config_file=args.ini, launch_pos=launch_pos, descent_only=args.descent_only, hourly=args.timely, live=args.live, output_file=args.output, kml_output=args.kml, webpage=args.webpage, image=args.image, bb=args.bb, tsv=args.export_tsv, upload=args.upload)
