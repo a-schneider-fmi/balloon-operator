@@ -421,13 +421,15 @@ class MainWidget(QWidget):
             parameters['parachute_parameters'],
             model_data, self.timestep, 
             descent_velocity=parameters['descent_velocity'])
-        is_abroad = trajectory_predictor.checkBorderCrossing(track)
-        if is_abroad[-1]:
-            border_crossing = 'landing abroad'
-        elif is_abroad.any():
-            border_crossing = 'crossing foreign airspace'
-        else:
-            border_crossing = 'no'
+        try:
+            is_abroad, foreign_countries = trajectory_predictor.checkBorderCrossing(track)
+            if is_abroad.any():
+                border_crossing = 'yes: {}'.format(', '.join(foreign_countries))
+            else:
+                border_crossing = 'no'
+        except Exception as err:
+            print('Error determining border crossing: {}'.format(err))
+            border_crossing = None
         self.setLanding(track.segments[-1].points[-1].time, track.segments[-1].points[-1].longitude, track.segments[-1].points[-1].latitude, track.segments[-1].points[-1].elevation, flight_range, border_crossing)
 
         # Save resulting trajectory.

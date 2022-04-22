@@ -410,15 +410,28 @@ def checkBorderCrossing(track):
     @param track flight track as gpxpy.gpx.GPXTrack object
     @return is_abroad array of booleans indicating whether a track point is abroad
     """
-    import reverse_geocode
-    coords = []
+    import countries
+    borders_file = os.getenv('WORLD_BORDERS_FILE')
+    if borders_file is None:
+        borders_file = 'TM_WORLD_BORDERS-0.3.shp'
+    cc = countries.CountryChecker(borders_file)
+    no_of_points = 0
+    for segment in track.segments:
+        no_of_points += len(segment.points)
+    country_list = np.zeros(no_of_points, dtype='S2')
+    ind = 0
     for segment in track.segments:
         for point in segment.points:
-            coords.append((point.latitude, point.longitude))
-    geocodes = reverse_geocode.search(coords)
-    countries = np.array([geocode['country'] for geocode in geocodes])
-    is_abroad = (countries != countries[0])
-    return is_abroad
+            cpt = cc.getCountry(countries.Point(point.latitude, point.longitude))
+            if cpt is None:
+                country_list[ind] = '??'
+            else:
+                country_list[ind] = cpt.iso
+            ind += 1
+    assert(ind == len(country_list))
+    is_abroad = (np.array(country_list) != country_list[0])
+    foreign_countries = [country.decode('utf-8') for country in np.unique(country_list) if country != country_list[0]]
+    return is_abroad, foreign_countries
 
 
 def detectDescent(segment_tracked, launch_altitude):
@@ -1014,8 +1027,14 @@ def exportTsv(track, output_file, top_height=None, border_check=True):
         if top_height is not None:
             fd.write('Max. altitude: {:.0f} m\n'.format(top_height))
         if border_check:
-            is_abroad = checkBorderCrossing(track)
-            fd.write('Border is {}crossed.\n'.format('' if is_abroad.any() else 'not '))
+            try:
+                is_abroad, foreign_countries = checkBorderCrossing(track)
+                if is_abroad.any():
+                    fd.write('Border is crossed into {}.\n'.format(', '.join(foreign_countries)))
+                else:
+                    fd.write('Border is not crossed.\n')
+            except Exception as err:
+                logging.warning('Cannot check border crossing: {}\nIs WORLD_BORDERS_FILE pointing to the data file?'.format(err))
         fd.write('\n')
         fd.write('Time (UTC)\tLongitude (°E)\tLatitude (°N)\tAltitude (m)\n')
         for segment in track.segments:

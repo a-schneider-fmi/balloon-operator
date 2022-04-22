@@ -24,7 +24,8 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 * [pyside6](https://doc.qt.io/qtforpython/) for the graphical user interface
 * [matplotlib](https://www.matplotlib.org/) for live plots
 * [cartopy](https://scitools.org.uk/cartopy/docs/latest/) for exporting a map with the trajectory
-* [reverse_geocode](https://github.com/richardpenman/reverse_geocode/) if boundary crossing shall be determined
+* [countries](https://github.com/che0/countries) if boundary crossing shall be determined
+* [gdal](https://gdal.org/) as dependency for `countries`
 Usually, these can be installed with `pip`:
 ```
 pip install numpy scipy requests pygrib geog gpxpy simplekml
@@ -36,10 +37,10 @@ pip install paramiko
 pip install pyside6
 pip install matplotlib
 pip install cartopy
-pip install reverse_geocode
+pip install gdal
 ```
-The package `srtm-python` is not available in pypi and has to be cloned from
-github (don't forget to set the PYTHONPATH so that it is found).
+The packages `srtm-python` and `countries` are not available in pypi and have to
+be cloned from github (don't forget to set the PYTHONPATH so that they are found).
 
 With the [Anaconda](https://www.anaconda.com/) Python distribution, packages
 are installed with `conda`, but some are not available in the standard channel.
@@ -57,7 +58,7 @@ conda install -c conda-forge paramiko
 pip install pyside6
 conda install matplotlib
 conda install cartopy
-pip install reverse_geocode
+conda install gdal
 ```
 On Windows, if you encounter an error message like
 ```
@@ -79,7 +80,7 @@ sudo apt install python3-numpy python3-scipy python3-requests python3-grib pytho
 ```
 and if needed
 ```
-sudo apt install python3-matplotlib python3-cartopy
+sudo apt install python3-matplotlib python3-cartopy python3-gdal
 ```
 Some Python packages are not available through the Linux packaging system.
 These can either be installed with pip or by cloning the repositories and setting
@@ -100,7 +101,11 @@ above under Dependencies) to compile the UI.
   GFS model data from NOAA.
 * To compute the landing, a digital elevation model (DEM) is used. Data has to
   be downloaded manually from http://viewfinderpanoramas.org/dem3.html; the
-  HGT_DIR environment variable should point to the location of the unpacked data.
+  `HGT_DIR` environment variable should point to the location of the unpacked data.
+* To determine border crossings, the
+  [World Borders Dataset](http://thematicmapping.org/downloads/world_borders.php)
+  needs to be available. The `WORLD_BORDERS_FILE` environment variable should point
+  to the location of the file `TM_WORLD_BORDERS-0.3.shp`.
 
 
 ## Graphical user interface
