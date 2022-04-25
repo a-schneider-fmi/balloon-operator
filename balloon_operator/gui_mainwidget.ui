@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>611</width>
-    <height>716</height>
+    <height>825</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -721,17 +721,20 @@
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
-       <widget class="QLabel" name="label_border_crossing">
-        <property name="text">
-         <string>Border crossing</string>
-        </property>
-       </widget>
-      </item>
       <item row="5" column="1">
        <widget class="QLabel" name="label_border_crossing_value">
         <property name="text">
          <string>??</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
+       <widget class="QCheckBox" name="check_border_crossing">
+        <property name="text">
+         <string>Border check</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -768,6 +771,7 @@
   <tabstop>spin_launch_altitude</tabstop>
   <tabstop>dt_launch_datetime</tabstop>
   <tabstop>button_now</tabstop>
+  <tabstop>check_border_crossing</tabstop>
   <tabstop>edit_output_file</tabstop>
   <tabstop>button_output_file_dialog</tabstop>
   <tabstop>check_webpage</tabstop>

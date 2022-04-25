@@ -421,14 +421,21 @@ class MainWidget(QWidget):
             parameters['parachute_parameters'],
             model_data, self.timestep, 
             descent_velocity=parameters['descent_velocity'])
-        try:
-            is_abroad, foreign_countries = trajectory_predictor.checkBorderCrossing(track)
-            if is_abroad.any():
-                border_crossing = 'yes: {}'.format(', '.join(foreign_countries))
-            else:
-                border_crossing = 'no'
-        except Exception as err:
-            print('Error determining border crossing: {}'.format(err))
+        if self.ui.check_border_crossing.isChecked():
+            try:
+                is_abroad, foreign_countries = trajectory_predictor.checkBorderCrossing(track)
+                if is_abroad.any():
+                    border_crossing = 'crossed into {}'.format(', '.join(foreign_countries))
+                else:
+                    border_crossing = 'domestic'
+            except Exception as err:
+                print('Error determining border crossing: {}'.format(err))
+                border_crossing = None
+                is_abroad = None
+                foreign_countries = None
+        else:
+            is_abroad = False
+            foreign_countries = None
             border_crossing = None
         self.setLanding(track.segments[-1].points[-1].time, track.segments[-1].points[-1].longitude, track.segments[-1].points[-1].latitude, track.segments[-1].points[-1].elevation, flight_range, border_crossing)
 
@@ -444,7 +451,9 @@ class MainWidget(QWidget):
         if parameters['map_file']:
             trajectory_predictor.exportImage(track, parameters['map_file'], waypoints=waypoints)
         if parameters['tsv_file']:
-            trajectory_predictor.exportTsv(track, parameters['tsv_file'], top_height=parameters['top_altitude'])
+            trajectory_predictor.exportTsv(
+                    track, parameters['tsv_file'], top_height=parameters['top_altitude'],
+                    is_abroad=is_abroad, foreign_countries=foreign_countries)
         return {'lon': track.segments[-1].points[-1].longitude,
                 'lat': track.segments[-1].points[-1].latitude,
                 'alt': track.segments[-1].points[-1].elevation,
