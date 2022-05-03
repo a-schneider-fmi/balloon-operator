@@ -9,6 +9,8 @@ Created on Sat Apr 24 18:33:56 2021
 
 import datetime
 from balloon_operator import trajectory_predictor, download_model_data
+import gpxpy
+import gpxpy.gpx
 
 
 so_launch_lon = 26.6294
@@ -46,6 +48,28 @@ def test_equidistantAltitudeGrid(verbose=False):
     assert(altitude_vector[-1] == 0)
 
 
+def test_checkBorderCrossing(verbose=False):
+    """
+    Unit test for checkBorderCrossing
+    """
+    segment = gpxpy.gpx.GPXTrackSegment()
+    track = gpxpy.gpx.GPXTrack()
+    track.segments.append(segment)
+    segment.points.append(gpxpy.gpx.GPXTrackPoint(so_launch_lat, so_launch_lon))
+    segment.points.append(gpxpy.gpx.GPXTrackPoint(67, 27)) # domestic point
+    is_abroad, foreign_countries = trajectory_predictor.checkBorderCrossing(track)
+    if verbose:
+        print(is_abroad, foreign_countries)
+    assert(len(is_abroad) == 2 and (~is_abroad).all())
+    segment.points.append(gpxpy.gpx.GPXTrackPoint(67, 22)) # foreign point
+    is_abroad, foreign_countries = trajectory_predictor.checkBorderCrossing(track)
+    if verbose:
+        print(is_abroad, foreign_countries)
+    assert(len(is_abroad) == 3 and is_abroad[2] == True)
+    assert(len(foreign_countries) == 1)
+    assert('SE' in foreign_countries)
+
+
 def test_main():
     """
     Test of main function
@@ -61,4 +85,5 @@ def test_main():
 if __name__ == "__main__":
     test_readGfsDataFiles(verbose=True)
     test_equidistantAltitudeGrid(verbose=True)
+    test_checkBorderCrossing(verbose=True)
     test_main()
