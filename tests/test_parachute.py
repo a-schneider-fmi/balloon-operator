@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Unit tests for parachute.py.
+Unit tests for parachute module.
 
-Created on Mon Apr 19 18:21:40 2021
-@author: Andreas Schneider <andreas.schneider@fmi.fi>
+Copyright (C) 2021 Andreas Schneider <andreas.schneider@fmi.fi>
+
+This file is part of Balloon Operator.
+
+Balloon Operator is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later version.
+
+Balloon Operator is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+Balloon Operator. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import numpy as np

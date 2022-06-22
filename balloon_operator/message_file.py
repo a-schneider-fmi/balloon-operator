@@ -1,9 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Sep  9 10:17:21 2021
+Module to handle messages via externally modified local files.
 
-@author: Andreas Schneider <andreas.schneider@fmi.fi>
+Copyright (C) 2021, 2022 Andreas Schneider <andreas.schneider@fmi.fi>
+
+This file is part of Balloon Operator.
+
+Balloon Operator is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later version.
+
+Balloon Operator is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+Balloon Operator. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import numpy as np

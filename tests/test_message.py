@@ -1,8 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jan 25 13:14:33 2022
-@author: Andreas Schneider <andreas.schneider@fmi.fi>
+Unit tests for message module.
+
+Copyright (C) 2021, 2022 Andreas Schneider <andreas.schneider@fmi.fi>
+
+This file is part of Balloon Operator.
+
+Balloon Operator is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later version.
+
+Balloon Operator is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+Balloon Operator. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import datetime

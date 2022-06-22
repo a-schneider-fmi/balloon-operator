@@ -1,13 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Compute filling of the balloon.
+Module to compute the filling of the balloon.
 
 The computation is based on the "Totex Balloon Burst Estimator" spreadsheet
 and on Jens Söder's BalloonTrajectory MATLAB program.
 
-Created on Thu Apr  8 07:38:26 2021
-@author: Andreas Schneider <andreas.schneider@fmi.fi>
+Copyright (C) 2021 Andreas Schneider <andreas.schneider@fmi.fi>
+
+This file is part of Balloon Operator.
+
+Balloon Operator is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later version.
+
+Balloon Operator is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+Balloon Operator. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import numpy as np
@@ -203,9 +215,9 @@ def main(balloon_weight, payload_weight, launch_radius, ascent_velocity=None, fi
     return
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser('Balloon filling computation')
     parser.add_argument('balloon', type=int, help='Balloon type (weight in g)')
     parser.add_argument('payload', type=float, help='Payload weight in kg')
     parser.add_argument('radius', type=float, help='Launch radius in m')

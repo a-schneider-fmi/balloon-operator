@@ -1,12 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Compute descent on parachute.
+Module to compute descent on parachute.
 
 The computation is based on Jens Söder's BalloonTrajectory MATLAB program.
 
-Created on Mon Apr 19 18:14:53 2021
-@author: Andreas Schneider <andreas.schneider@fmi.fi>
+Copyright (C) 2021 Andreas Schneider <andreas.schneider@fmi.fi>
+
+This file is part of Balloon Operator.
+
+Balloon Operator is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later version.
+
+Balloon Operator is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+Balloon Operator. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import numpy as np
@@ -140,10 +152,11 @@ def parachuteDescent(alt_start, timestep, payload_weight, parachute_parameters, 
 
     return time, altitude, velocity
 
+
 if __name__ == '__main__':
     import argparse
     from matplotlib import pyplot as plt
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser('Parachute descent computation')
     parser.add_argument('parachute', help='Parachute type')
     parser.add_argument('weight', type=float, help='Payload weight in kg')
     parser.add_argument('-p', '--parameters', required=False, default='parachute_parameters.tsv', help='Parachute parameter file')

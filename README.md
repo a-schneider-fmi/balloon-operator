@@ -2,9 +2,43 @@
 
 Balloon operation software including trajectory prediction and flight control
 
-This software package is based on the BalloonTrajectory MATLAB software that
-has been developed by Jens Söder <soeder@iap-kborn.de> at the Institute of
+Balloon Operator is based on the BalloonTrajectory MATLAB software that has
+been developed by Jens Söder <soeder@iap-kborn.de> at the Institute of
 Atmospheric Physics in Kühlungsborn.
+
+
+## Features
+
+* Compute trajectories of balloon flights
+    * Single forecast
+    * Hourly forecasts
+    * Live forecast to predict the continuation of an ongoing flight based on received coordinates
+* Export trajectories in GPX or KML format or as a webpage and optionally upload them to a server
+* Communication with payload via
+    * IRIDIUM SBD messages from/to a RockBLOCK device
+    * a local file modified by an external program
+* Send messages to a balloon e.g. to activate a cutter
+* Graphical user interface
+
+
+## Author
+
+Balloon Operator is written by Andreas Schneider <andreas.schneider@fmi.fi>
+at the Finnish Meteorological Institute in Sodankylä.
+
+
+## License
+
+Balloon Operator is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later version.
+
+Balloon Operator is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+A copy of the GNU General Public License can be found in the file LICENSE.md.
+Alternatively, see <https://www.gnu.org/licenses/>.
 
 
 ## Dependencies
