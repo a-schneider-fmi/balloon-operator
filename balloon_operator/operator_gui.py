@@ -789,54 +789,58 @@ class OperatorWidget(QWidget):
                 self.ui.combo_iridium.addItem('{} ({})'.format(name, imei), imei)
                 self.ui.combo_receive_imei.addItem('{} ({})'.format(name, imei), str(imei))
 
+    def _cutterStateText(self, state):
+        """
+        Textual representation of cutter state
+        """
+        return 'fired' if state else 'not fired'
+
+    def _heatingStateText(self, state):
+        """
+        Textual representation of heating state
+        """
+        return 'on' if state else 'off'
+
     def setStandardData(self, data):
         """
         Sets standard data from a received message.
         """
-        if 'DATETIME' in data:
-            self.ui.label_cur_datetime_value.setText('{}'.format(data['DATETIME'].isoformat()))
-        else:
-            self.ui.label_cur_datetime_value.setText('??.??.???? ??:??:??')
-        if 'LON' in data:
-            self.ui.label_cur_longitude_value.setText('{:.6f}°'.format(data['LON']))
-        else:
-            self.ui.label_cur_longitude_value.setText('??°')
-        if 'LAT' in data:
-            self.ui.label_cur_latitude_value.setText('{:.6f}°'.format(data['LAT']))
-        else:
-            self.ui.label_cur_latitude_value.setText('??°')
-        if 'ALT' in data:
-            self.ui.label_cur_altitude_value.setText('{:.1f} m'.format(data['ALT']))
-        else:
-            self.ui.label_cur_altitude_value.setText('?? m')
-        if 'PRESS' in data:
-            self.ui.label_cur_pressure_value.setText('{} hPa'.format(data['PRESS']))
-        else:
-            self.ui.label_cur_pressure_value.setText('?? hPa')
-        if 'TEMP' in data:
-            self.ui.label_cur_temperature_value.setText('{:.1f} °C'.format(data['TEMP']))
-        else:
-            self.ui.label_cur_temperature_value.setText('?? °C')
-        if 'HUMID' in data:
-            self.ui.label_cur_humidity_value.setText('{:.1f} %'.format(data['HUMID']))
-        else:
-            self.ui.label_cur_humidity_value.setText('?? %')
-        if 'BATTV' in data:
-            self.ui.label_cur_battery_value.setText('{:.2f} V'.format(data['BATTV']))
-        else:
-            self.ui.label_cur_battery_value.setText('?? V')
-        if 'USERVAL1' in data:
-            self.ui.label_cur_cutter1_value.setText('fired' if data['USERVAL1'] & 1 else 'not fired')
-            self.ui.label_cur_cutter2_value.setText('fired' if data['USERVAL1'] & 2 else 'not fired')
-            self.ui.label_cur_heating_value.setText('on' if data['USERVAL1'] & 4 else 'off')
-        else:
-            self.ui.label_cur_cutter1_value.setText('??')
-            self.ui.label_cur_cutter2_value.setText('??')
-            self.ui.label_cur_heating_value.setText('??')
-        if 'IMEI' in data:
-            self.ui.label_id_value.setText('{}'.format(data['IMEI']))
-        else:
-            self.ui.label_id_value.setText('??')
+        self.ui.label_cur_datetime_value.setText(
+                '{}'.format(data['DATETIME'].isoformat()) if 'DATETIME' in data
+                else '??.??.???? ??:??:??')
+        self.ui.label_cur_longitude_value.setText(
+                '{:.6f}°'.format(data['LON']) if 'LON' in data
+                else '??°')
+        self.ui.label_cur_latitude_value.setText(
+                '{:.6f}°'.format(data['LAT']) if 'LAT' in data
+                else '??°')
+        self.ui.label_cur_altitude_value.setText(
+                '{:.1f} m'.format(data['ALT']) if 'ALT' in data
+                else '?? m')
+        self.ui.label_cur_pressure_value.setText(
+                '{} hPa'.format(data['PRESS']) if 'PRESS' in data
+                else '?? hPa')
+        self.ui.label_cur_temperature_value.setText(
+                '{:.1f} °C'.format(data['TEMP']) if 'TEMP' in data
+                else '?? °C')
+        self.ui.label_cur_humidity_value.setText(
+                '{:.1f} %'.format(data['HUMID']) if 'HUMID' in data
+                else '?? %')
+        self.ui.label_cur_battery_value.setText(
+                '{:.2f} V'.format(data['BATTV']) if 'BATTV' in data
+                else '?? V')
+        self.ui.label_cur_cutter1_value.setText(
+                self._cutterStateText(data['USERVAL1'] & 1) if 'USERVAL1' in data
+                else '??')
+        self.ui.label_cur_cutter2_value.setText(
+                self._cutterStateText(data['USERVAL1'] & 2) if 'USERVAL1' in data
+                else '??')
+        self.ui.label_cur_heating_value.setText(
+                self._heatingStateText(data['USERVAL1'] & 4) if 'USERVAL1' in data
+                else '??')
+        self.ui.label_id_value.setText(
+                '{}'.format(data['IMEI']) if 'IMEI' in data
+                else '??')
 
     def setAdvancedData(self, data):
         """

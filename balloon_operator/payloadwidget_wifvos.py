@@ -60,15 +60,13 @@ def setPayloadData(payload_widget, data):
     @param data message data
     """
     widget_press =  payload_widget.findChild(QLabel, 'label_manifold_pressure_value')
-    if 'USERVAL3' in data:
-        widget_press.setText('{} Pa'.format(data['USERVAL3']))
-    else:
-        widget_press.setText('?? Pa')
+    widget_press.setText(
+            '{} Pa'.format(data['USERVAL3']) if 'USERVAL3' in data
+            else '?? Pa')
     widget_flowrate =  payload_widget.findChild(QLabel, 'label_flowrate_value')
-    if 'USERVAL4' in data:
-        widget_flowrate.setText('{} sccm'.format(data['USERVAL4']))
-    else:
-        widget_flowrate.setText('?? sccm')
+    widget_flowrate.setText(
+            '{} sccm'.format(data['USERVAL4']) if 'USERVAL4' in data
+            else '?? sccm')
     widget_inlet = payload_widget.findChild(QLabel, 'label_inlet_status')
     widget_outlet = payload_widget.findChild(QLabel, 'label_outlet_status')
     widget_pump = payload_widget.findChild(QLabel, 'label_pump_status')
@@ -76,11 +74,10 @@ def setPayloadData(payload_widget, data):
     widget_event = payload_widget.findChild(QLabel, 'label_event_value')
     if 'USERVAL5' in data:
         valve_text = parseUserval5(data['USERVAL5'])
-        widget_inlet.setText(valve_text[0])
-        widget_outlet.setText(valve_text[1])
     else:
-        widget_inlet.setText('??')
-        widget_outlet.setText('??')
+        valve_text = ['??', '??']
+    widget_inlet.setText(valve_text[0])
+    widget_outlet.setText(valve_text[1])
     if 'USERVAL1' in data:
         cutter1_status, cutter2_status, heating_status, pump_status, event_status = parseUserval1(data['USERVAL1'])
         widget_pump.setText(statusText(pump_status))
@@ -88,10 +85,9 @@ def setPayloadData(payload_widget, data):
     else:
         widget_pump.setText('??')
         widget_event.setText('??')
-    if 'USERVAL2' in data:
-        widget_heating_temperature.setText('{} °C'.format(data['USERVAL2']))
-    else:
-        widget_heating_temperature.setText('?? °C')
+    widget_heating_temperature.setText(
+            '{} °C'.format(data['USERVAL2']) if 'USERVAL2' in data
+            else '?? °C')
 
 if __name__ == '__main__':
     """
