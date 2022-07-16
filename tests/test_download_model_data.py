@@ -16,7 +16,7 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-Balloon Operator. If not, see <https://www.gnu.org/licenses/>.
+Balloon Operator. If not, see <https://www.gnu.org/licenses/>. 
 """
 
 from balloon_operator import download_model_data
@@ -41,11 +41,11 @@ def test_modelFilename(verbose=False):
     name, ext = os.path.splitext(filename)
     assert(ext == '.grb2')
 
-def test_getModelArea(verbose=False):
+def test_getLonLatArea(verbose=False):
     """
-    Unit test for getModelArea.
+    Unit test for getLonLatArea.
     """
-    lon_range, lat_range = download_model_data.getModelArea(so_launch_lon, so_launch_lat)
+    lon_range, lat_range = download_model_data.getLonLatArea(so_launch_lon, so_launch_lat)
     if verbose:
         print('{} {} {} {}'.format(lon_range[0], lat_range[0], lon_range[1], lat_range[1]))
 
@@ -58,7 +58,17 @@ def test_getGfsData(verbose=False):
             so_launch_lon, so_launch_lat, launch_datetime, '/tmp')
     assert(filename is not None)
 
+def test_getHarmonieFmiData(verbose=False):
+    """
+    Unit test for downloadHarmonieFmiData
+    """
+    filename = download_model_data.getHarmonieData(
+            so_launch_lon, so_launch_lat, datetime.datetime.utcnow(), '/tmp')
+    assert(filename is not None)
+
 if __name__ == "__main__":
     test_modelFilename(verbose=True)
-    test_getModelArea(verbose=True)
+    test_getLonLatArea(verbose=True)
     test_getGfsData(verbose=True)
+    if download_model_data.checkFmiConnectivity():
+        test_getHarmonieFmiData(verbose=True)

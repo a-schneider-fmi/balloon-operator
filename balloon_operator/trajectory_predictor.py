@@ -29,6 +29,7 @@ import gpxpy
 import gpxpy.gpx
 import srtm
 import geog
+import pyproj
 import configparser
 import os.path
 import argparse
@@ -127,7 +128,7 @@ def readGfsDataFiles(filelist):
 
     @return data a dictionary with the read model data with the following keys:
         'datetime', 'press', 'lon', 'lat', 'surface_pressure', 'surface_altitude',
-        'altitude', 'u_wind_deg', 'v_wind_deg'
+        'altitude', 'u_wind_deg', 'v_wind_deg', 'proj'
         Variables (but not lon, lat, press) have one dimension more than from readGfsDataFile.
     """
     data = None
@@ -148,7 +149,8 @@ def readGfsDataFiles(filelist):
                     'surface_altitude': np.zeros((len(filelist),len(this_data['lon']),len(this_data['lat']))),
                     'altitude': np.zeros((len(filelist),len(this_data['press']),len(this_data['lon']),len(this_data['lat']))),
                     'u_wind_deg': np.zeros((len(filelist),len(this_data['press']),len(this_data['lon']),len(this_data['lat']))),
-                    'v_wind_deg': np.zeros((len(filelist),len(this_data['press']),len(this_data['lon']),len(this_data['lat'])))}
+                    'v_wind_deg': np.zeros((len(filelist),len(this_data['press']),len(this_data['lon']),len(this_data['lat']))),
+                    'proj': None, 'lev_type': 'press'}
         data['datetime'][ind_file] = this_data['datetime']
         assert (data['press'].shape == this_data['press'].shape and (data['press'] == this_data['press']).all())
         assert (data['lon'].shape == this_data['lon'].shape and (data['lon'] == this_data['lon']).all())
@@ -165,6 +167,73 @@ def readGfsDataFiles(filelist):
             data[qty] = data[qty][idx_keep,:,:]
         for qty in ['altitude', 'u_wind_deg', 'v_wind_deg']:
             data[qty] = data[qty][idx_keep,:,:,:]
+    return data
+
+
+def readHarmonieNcDataFile(filename):
+    """
+    Read Harmonie data file
+
+    @param filename name of GFS GRIB data file
+
+    @return data a dictionary with the read model data with the following keys:
+        'datetime', 'x', 'y', 'press', 'sealevel_pressure',
+        'u_wind_ms', 'v_wind_ms', 'proj'
+    """
+    import netCDF4
+    ds = netCDF4.Dataset(filename)
+    proj = pyproj.Proj('+proj=lcc +lon_0={} +lat_0={} +lat_1={} +lat_2={} +R={}'.format(
+            ds['crs'].longitude_of_central_meridian,
+            ds['crs'].latitude_of_projection_origin,
+            ds['crs'].standard_parallel[0],
+            ds['crs'].standard_parallel[1],
+            ds['crs'].earth_radius))
+    nctimestr = ds['time'].units[12:]
+    dt_ref = datetime.datetime.fromisoformat(nctimestr)
+    dt = np.array([dt_ref + datetime.timedelta(hours=int(ds['time'][:].filled(-1)[ind])) for ind in range(len(ds['time']))])
+    data = {'datetime': dt,
+            'x': ds['x'],
+            'y': ds['y'],
+            'sealevel_pressure': ds['air_pressure_at_sea_level_1'][:,:].filled(np.nan),
+            'u_wind_ms': ds['eastward_wind_23'][:,:,:,:].filled(np.nan),
+            'v_wind_ms': ds['northward_wind_24'][:,:,:,:].filled(np.nan),
+            'proj': proj, 'lev_type': 'hybrid'}
+    ds.close()
+    return data
+
+
+def readHarmonieGribDataFile(filename):
+    """
+    Read Harmonie data file
+
+    @param filename name of GFS GRIB data file
+
+    @return data a dictionary with the read model data with the following keys:
+        'datetime', 'x', 'y', 'press', 'altitude', 'u_wind_ms', 'v_wind_ms', 'proj'
+    """
+    import xarray as xr
+    ds = xr.open_dataset(filename, engine='cfgrib')
+    proj = pyproj.Proj('+proj=lcc +lon_0={} +lat_0={} +lat_1={} +lat_2={}'.format(
+            ds.pres.GRIB_LoVInDegrees,
+            ds.pres.GRIB_LaDInDegrees,
+            ds.pres.GRIB_Latin1InDegrees,
+            ds.pres.GRIB_Latin2InDegrees))
+    data = {'datetime': np.array((ds.time.data + ds.step.data).astype('<M8[us]').tolist()),
+            'x': ds.x.data,
+            'y': ds.y.data,
+            'lon': ds.longitude.data,
+            'lat': ds.latitude.data,
+            'hybrid': ds.hybrid.data,
+            'press': ds.pres.data,
+            'altitude': ds.h.data,
+            'u_wind_ms': ds.u.data,
+            'v_wind_ms': ds.v.data,
+            'proj': proj, 'lev_type': 'hybrid'}
+    ds.close()
+    # WORKAROUND: Overwrite faulty x and y values with ones projected from lon/lat.
+    x, y = proj(data['lon'], data['lat'])
+    data['x'] = x[0,:]
+    data['y'] = y[:,0]
     return data
 
 
@@ -203,24 +272,49 @@ def predictTrajectory(dt, altitude, model_data, lon_start, lat_start):
     @return gpx_segment gpxpy.gpx.GPXTrackSegment object with trajectory
     """
     gpx_segment = gpxpy.gpx.GPXTrackSegment()
-    # Compute pressure for given altitude array by interpolating the model near
-    # the launch position with an exponential fit.
-    i_start = np.argmin(np.abs(model_data['lon']-lon_start))
-    j_start = np.argmin(np.abs(model_data['lat']-lat_start))
     t_start = 0
-    expfun = lambda x,a,b: a*np.exp(b*x)
-    popt, pcov = curve_fit(expfun,  model_data['altitude'][t_start, :, i_start, j_start],  model_data['press'],  p0=(model_data['surface_pressure'][t_start, i_start, j_start], -1./8300.))
-    pressure = expfun(altitude, popt[0], popt[1])
-    max_model_press = np.max(model_data['press'])
-    min_model_press = np.min(model_data['press'])
-    pressure[pressure > max_model_press] = max_model_press # Cap pressures larger than maximum of model grid to avoid extrapolation.
-    pressure[pressure < min_model_press] = min_model_press # Cap pressures lower than maximum of model grid to avoid extrapolation.
+    if model_data['proj'] is None:
+        x_var = 'lat'
+        y_var = 'lon'
+        u_var = 'u_wind_deg'
+        v_var = 'v_wind_deg'
+        x = lon_start
+        y = lat_start
+        i_start = np.argmin(np.abs(model_data['lon']-lon_start))
+        j_start = np.argmin(np.abs(model_data['lat']-lat_start))
+    else:
+        x_var = 'x'
+        y_var = 'y'
+        u_var = 'u_wind_ms'
+        v_var = 'v_wind_ms'
+        x, y = model_data['proj'](lon_start, lat_start)
+        i_start = np.argmin(np.abs(model_data['y']-y))
+        j_start = np.argmin(np.abs(model_data['x']-x))
+    print(i_start,j_start) # DEBUG
+    if model_data['lev_type'] == 'hybrid':
+        z_var = 'hybrid'
+        lev = np.interp(altitude, model_data['altitude'][t_start, :, i_start, j_start][::-1], model_data['hybrid'][::-1])
+        max_lev = np.max(model_data['hybrid'])
+        min_lev = np.min(model_data['hybrid'])
+        lev[lev > max_lev] = max_lev
+        lev[lev < min_lev] = min_lev
+    else:
+        z_var = 'press'
+        # Compute pressure for given altitude array by interpolating the model near
+        # the launch position with an exponential fit.
+        expfun = lambda x,a,b: a*np.exp(b*x)
+        popt, pcov = curve_fit(expfun,  model_data['altitude'][t_start, :, i_start, j_start],  model_data['press'],  p0=(model_data['surface_pressure'][t_start, i_start, j_start], -1./8300.))
+        pressure = expfun(altitude, popt[0], popt[1])
+        max_model_press = np.max(model_data['press'])
+        min_model_press = np.min(model_data['press'])
+        pressure[pressure > max_model_press] = max_model_press # Cap pressures larger than maximum of model grid to avoid extrapolation.
+        pressure[pressure < min_model_press] = min_model_press # Cap pressures lower than maximum of model grid to avoid extrapolation.
+        lev = pressure
+
     # Displace balloon by model winds.
-    lon = lon_start
-    lat = lat_start
     time_grid = np.array([(this_dt-model_data['datetime'][0]).total_seconds() for this_dt in model_data['datetime']])
-    interp_u = RegularGridInterpolator((time_grid,model_data['press'],model_data['lon'],model_data['lat']), model_data['u_wind_deg'])
-    interp_v = RegularGridInterpolator((time_grid,model_data['press'],model_data['lon'],model_data['lat']), model_data['v_wind_deg'])
+    interp_u = RegularGridInterpolator((time_grid,model_data[z_var],model_data[y_var],model_data[x_var]), model_data[u_var])
+    interp_v = RegularGridInterpolator((time_grid,model_data[z_var],model_data[y_var],model_data[x_var]), model_data[v_var])
     has_landed = False
     for ind in range(len(dt)):
         if ind > 0:
@@ -233,13 +327,18 @@ def predictTrajectory(dt, altitude, model_data, lon_start, lat_start):
                 grid_time = time_grid[0] # Cap time outside grid
                 logging.warning('Capping time outside grid: {} < {}'.format(dt[ind], model_data['datetime'][0]))
             try:
-                u = interp_u([grid_time, pressure[ind], lon, lat])[0]
-                v = interp_v([grid_time, pressure[ind], lon, lat])[0]
+                u = interp_u([grid_time, lev[ind], x, y])[0]
+                v = interp_v([grid_time, lev[ind], x, y])[0]
             except ValueError as err:
                 logging.error('Error interpolating winds: {}'.format(err))
                 continue
-            lon += delta_t * u
-            lat += delta_t * v
+            x += delta_t * u
+            y += delta_t * v
+            if model_data['proj'] is None:
+                lon = x
+                lat = y
+            else:
+                lon, lat = model_data['proj'](x, y, inverse=True)
             surface_elevation = srtm.get_elevation(lat, lon)
             if surface_elevation is not None and altitude[ind] <= surface_elevation:
                 # Compute after which fraction of the last time step the ground
@@ -247,13 +346,18 @@ def predictTrajectory(dt, altitude, model_data, lon_start, lat_start):
                 # This approach assumes no steep slopes.
                 below_ground = surface_elevation - altitude[ind]
                 timestep_fraction = below_ground / (altitude[ind] - altitude[ind-1])
-                lon -= timestep_fraction * delta_t * u
-                lat -= timestep_fraction * delta_t * v
+                x -= timestep_fraction * delta_t * u
+                y -= timestep_fraction * delta_t * v
                 dt -= datetime.timedelta(seconds=timestep_fraction*delta_t)
                 has_landed = True
+        if model_data['proj'] is None:
+            lon = x
+            lat = y
+        else:
+            lon, lat = model_data['proj'](x, y, inverse=True)
         gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(
                 lat, lon, elevation=altitude[ind], time=dt[ind], 
-                comment='{:.2f} hPa'.format(pressure[ind]/100.)))
+                comment=('{:.2f} hPa'.format(pressure[ind]/100.) if model_data['lev_type'] == 'press' else 'lev {:.2f}.format(lev[ind])')))
         if has_landed:
             break
     return gpx_segment
@@ -1063,7 +1167,7 @@ def exportTsv(track, output_file, top_height=None, is_abroad=None, foreign_count
     return
 
 
-def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=False, live=None, launch_pos=None, output_file=None, kml_output=None, webpage=None, image=None, bb=None, tsv=None, upload=None):
+def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=False, live=None, launch_pos=None, output_file=None, kml_output=None, webpage=None, image=None, bb=None, tsv=None, upload=None, model=None):
     """
     Main function to make a trajectory prediction from a configuration file.
 
@@ -1075,9 +1179,14 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
     @param output_file output filename for computed trajectory (default: '/tmp/trajectory.gpx')
     @param hourly whether to do an hourly forecast, showing landing spots for diffent launch times (default: False)
     @param live whether to do a live forecast, computation continuation of trajectory from tracker on balloon
+    @param output_file output file path
     @param kml_output output result in KML format instead of GPX, optionally embedding a network link
     @param webpage create an interactive web page displaying the trajectory and write it to given file name
+    @param image create an image file with a map of the flight trajectory
+    @param bb bounding box for map on image
+    @param tsv export flight track in tsv format
     @param upload upload data to foreign host according to information in given ini file
+    @param model select model ('gfs', 'harmonie')
     """
     # Read configuration.
     config = configparser.ConfigParser()
@@ -1120,6 +1229,11 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
         model_path = config['parameters']['model_path']
     else:
         model_path = tempfile.gettempdir()
+    if model is None:
+        if 'model' in config['parameters']:
+            model = config['parameters']['model']
+        else:
+            model = 'gfs'
 
     if output_file is None:
         if hourly:
@@ -1185,13 +1299,23 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
             webpage=webpage, upload=upload)
 
     else: # Normal trajectory computation.
-        # Download and read in model data.
-        model_filenames = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
-        if model_filenames is None or len(model_filenames) == 0:
-            logging.error('Error retrieving model data.')
+        # Download and read model data.
+        if model == 'gfs':
+            model_filenames = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
+            if model_filenames is None or len(model_filenames) == 0:
+                logging.error('Error retrieving GFS model data.')
+                return
+            model_data = readGfsDataFiles(model_filenames)
+        elif model == 'harmonie':
+            model_filename = download_model_data.getHarmonieData(launch_lon, launch_lat, launch_datetime, model_path)
+            if model_filename is None:
+                logging.error('Error retrieving Harmonie model data.')
+                return
+            model_data = readHarmonieGribDataFile(model_filename)
+        else:
+            logging.error('Unknown model: {}'.format(model))
             return
-        model_data = readGfsDataFiles(model_filenames)
-    
+
         # Do prediction.
         track, waypoints, flight_range = predictBalloonFlight(
             launch_datetime, launch_lon, launch_lat, launch_altitude,
@@ -1240,6 +1364,7 @@ if __name__ == "__main__":
     parser.add_argument('-x', '--export-tsv', required=False, default=None, help='Export trajectory in tsv format')
     parser.add_argument('-u', '--upload', required=False, default=None, help='Upload results to web server')
     parser.add_argument('-o', '--output', required=False, default=None, help='Output file name')
+    parser.add_argument('-m', '--model', required=False, default='gfs', help='Select model (gfs, harmonie)')
     parser.add_argument('--log', required=False, default='INFO', help='Log level')
     args = parser.parse_args()
     if args.launchtime == 'now':
@@ -1254,4 +1379,4 @@ if __name__ == "__main__":
     if not isinstance(numeric_level, int):
         raise ValueError('Invalid log level: {}'.format(args.log))
     logging.basicConfig(level=numeric_level)
-    main(launch_datetime, config_file=args.ini, launch_pos=launch_pos, descent_only=args.descent_only, hourly=args.timely, live=args.live, output_file=args.output, kml_output=args.kml, webpage=args.webpage, image=args.image, bb=args.bb, tsv=args.export_tsv, upload=args.upload)
+    main(launch_datetime, config_file=args.ini, launch_pos=launch_pos, descent_only=args.descent_only, hourly=args.timely, live=args.live, output_file=args.output, kml_output=args.kml, webpage=args.webpage, image=args.image, bb=args.bb, tsv=args.export_tsv, upload=args.upload, model=args.model)
