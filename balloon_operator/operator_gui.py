@@ -137,6 +137,8 @@ class MainWidget(QWidget):
         self.timestep = 10
         self.model_path = tempfile.gettempdir()
         self.setBalloonPicture(self.ui.check_descent_balloon.isChecked())
+        for model_name in trajectory_predictor.readModelData.keys():
+            self.ui.combo_model.addItem(model_name)
 
         self.ui.button_now.clicked.connect(self.launchtimeNow)
         self.ui.button_load_payload.clicked.connect(self.onLoadPayload)
@@ -392,6 +394,7 @@ class MainWidget(QWidget):
                 'launch_lat': self.ui.spin_launch_latitude.value(),
                 'launch_alt': self.ui.spin_launch_altitude.value(),
                 'launch_datetime': self.ui.dt_launch_datetime.dateTime().toPython(),
+                'model': self.ui.combo_model.currentText(),
                 'output_file': self.ui.edit_output_file.text(),
                 'webpage_file': self.ui.edit_webpage_file.text() if self.ui.check_webpage.isChecked() else None,
                 'map_file': self.ui.edit_map_file.text() if self.ui.check_map.isChecked() else None,
@@ -414,14 +417,15 @@ class MainWidget(QWidget):
         Function is typically executed in a separate thread.
         """
         # Download and read in model data.
-        model_filenames = download_model_data.getGfsData(
+        model_filenames = download_model_data.getModelData(
+                parameters['model'],
                 parameters['launch_lon'], parameters['launch_lat'],
                 parameters['launch_datetime'], self.model_path)
-        if model_filenames is None or len(model_filenames) == 0:
+        if model_filenames is None or (isinstance(model_filenames,list) and (model_filenames) == 0):
             if callable(error_callback):
                 error_callback('Error retrieving model data.')
             return None
-        model_data = trajectory_predictor.readGfsDataFiles(model_filenames)
+        model_data = trajectory_predictor.readModelData[parameters['model']](model_filenames)
     
         # Do prediction.
         track, waypoints, flight_range = trajectory_predictor.predictBalloonFlight(
@@ -916,17 +920,18 @@ class OperatorWidget(QWidget):
         self.ui.label_status.setText('Downloading model data.')
         if self.flight_parameters['launch_datetime'] is None:
             self.flight_parameters['launch_datetime'] = datetime.datetime.utcnow()
-        filelist = download_model_data.getGfsData(
+        filelist = download_model_data.getModelData(
+                self.flight_parameters['model'],
                 self.flight_parameters['launch_lon'],
                 self.flight_parameters['launch_lat'],
                 self.flight_parameters['launch_datetime'],
                 self.model_path,
-                timesteps=7)
-        if filelist is None or len(filelist) == 0:
+                duration=7)
+        if filelist is None or (isinstance(filelist,list) and len(filelist) == 0):
             if callable(error_callback):
                 error_callback('Error downloading model data.')
             return
-        self.model_data = trajectory_predictor.readGfsDataFiles(filelist)
+        self.model_data = trajectory_predictor.readModelData[self.flight_parameters['model']](filelist)
 
     def startLiveForecast(self, parameters, model_path=tempfile.gettempdir(), timestep=10):
         """

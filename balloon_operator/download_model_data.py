@@ -155,7 +155,6 @@ def checkFmiConnectivity():
     """
     try:
         response = requests.get('http://smartmet.fmi.fi', timeout=(10,10))
-        print(response.text) # DEBUG
         return True
     except requests.exceptions.ConnectTimeout:
         return False
@@ -240,7 +239,11 @@ def downloadHarmonieFmiData(lon_range, lat_range, model_datetime, dest_dir, dura
     if os.path.isfile(filename.replace('{}','')):
         return filename
     else:
-        return downloadData(url, filename)
+        if checkFmiConnectivity():
+            return downloadData(url, filename)
+        else:
+            logging.error("No connectivity to FMI's SmartMet server.")
+            return None
 
 
 def getGfsData(launch_lon, launch_lat, launch_datetime, dest_dir, model_resolution=0.25, timesteps=4, run_interval=6):
@@ -296,3 +299,16 @@ def getHarmonieData(launch_lon, launch_lat, launch_datetime, dest_dir, duration=
         model_datetime = utils.roundHours(launch_datetime, 60)
     filename = downloadHarmonieFmiData(lon_range, lat_range, model_datetime, dest_dir, duration=duration)
     return filename
+
+
+def getModelData(model_name, launch_lon, launch_lat, launch_datetime, dest_dir, duration=4):
+    """
+    Download model data.
+    """
+    if model_name.upper() == 'GFS':
+        return getGfsData(launch_lon, launch_lat, launch_datetime, dest_dir, timesteps=duration)
+    elif model_name.upper() == 'HARMONIE':
+        return getHarmonieData(launch_lon, launch_lat, launch_datetime, dest_dir, duration=duration)
+    else:
+        logging.error('Unknown model: {}'.format(model_name))
+        return None

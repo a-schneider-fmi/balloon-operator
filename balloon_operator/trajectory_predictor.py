@@ -237,6 +237,14 @@ def readHarmonieGribDataFile(filename):
     return data
 
 
+"""
+Define supported models and their read functions.
+"""
+readModelData = {
+        'GFS': readGfsDataFiles,
+        'HARMONIE': readHarmonieGribDataFile}
+
+
 def equidistantAltitudeGrid(start_datetime, start_altitude, end_altitude, ascent_velocity, timestep):
     """
     Compute time and altitude grid for constant vertical velocity.
@@ -657,7 +665,7 @@ def liveForecast(
         launch_datetime, launch_lon, launch_lat, launch_altitude,
         payload_weight, payload_area, ascent_velocity, top_height,
         parachute_parameters,
-        timestep, model_path, output_file,
+        timestep, model_name, model_path, output_file,
         descent_velocity=None, 
         ini_file='comm.ini',
         kml_output=None):
@@ -673,6 +681,7 @@ def liveForecast(
     @param top_height balloon ceiling height in m
     @param parachute_parameters named array with parachute parameters
     @param timestep time step in s
+    @param model_name name of the model to use
     @param model_path directory where model data shall be stored
     @param output_file filename to which to write the resulting gpx or kml
     @param descent_velocity desired descent velocity for descent on balloon (None for descent on parachute)
@@ -686,11 +695,11 @@ def liveForecast(
     # Read model data.
     if launch_datetime is None:
         launch_datetime = utils.roundSeconds(datetime.datetime.utcnow())
-    filelist = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path, timesteps=7)
-    if filelist is None or len(filelist) == 0:
+    filelist = download_model_data.getModelData(model_name, launch_lon, launch_lat, launch_datetime, model_path, duration=7)
+    if filelist is None or (isinstance(filelist,list) and len(filelist) == 0):
         logging.critical('Cannot download model data.')
         return
-    model_data = readGfsDataFiles(filelist)
+    model_data = readModelData[model_name.upper()](filelist)
 
     # Do live prediction.
     logging.info('Starting live forecast. Waiting for messages ...')
@@ -1283,7 +1292,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
             launch_datetime, launch_lon, launch_lat, launch_altitude,
             payload_weight, payload_area, ascent_velocity, top_height,
             parachute_parameters,
-            timestep, model_path, output_file,
+            timestep, model, model_path, output_file,
             descent_velocity=descent_velocity, 
             ini_file=live,
             kml_output=kml_output)
@@ -1300,21 +1309,11 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
 
     else: # Normal trajectory computation.
         # Download and read model data.
-        if model == 'gfs':
-            model_filenames = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
-            if model_filenames is None or len(model_filenames) == 0:
-                logging.error('Error retrieving GFS model data.')
-                return
-            model_data = readGfsDataFiles(model_filenames)
-        elif model == 'harmonie':
-            model_filename = download_model_data.getHarmonieData(launch_lon, launch_lat, launch_datetime, model_path)
-            if model_filename is None:
-                logging.error('Error retrieving Harmonie model data.')
-                return
-            model_data = readHarmonieGribDataFile(model_filename)
-        else:
-            logging.error('Unknown model: {}'.format(model))
+        model_filenames = download_model_data.getModelData(model, launch_lon, launch_lat, launch_datetime, model_path)
+        if model_filenames is None or (isinstance(model_filenames,list) and len(model_filenames) == 0):
+            logging.error('Error retrieving model data.')
             return
+        model_data = readModelData[model.upper()](model_filenames)
 
         # Do prediction.
         track, waypoints, flight_range = predictBalloonFlight(
