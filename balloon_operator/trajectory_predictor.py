@@ -742,6 +742,7 @@ def liveForecast(
             if len(messages) > 0:
                 logging.info('Received {} message(s).'.format(len(messages)))
                 logging.info('Last: {}'.format(messages[-1]))
+                messages = message.Message.sortMessages(messages) # Sort messages according to time.
                 is_invalid = np.zeros(len(messages), dtype=bool)
                 for ind_msg in range(len(messages)):
                     msg = messages[ind_msg]

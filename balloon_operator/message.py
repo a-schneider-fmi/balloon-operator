@@ -94,6 +94,24 @@ class Message(object):
                 pass
         return msg_list
 
+    @staticmethod
+    def sortMessages(messages):
+        """
+        Sort a list of messages according to time.
+
+        @param messages a list of messages
+
+        @return messages sorted list of messages
+        """
+        if len(messages) == 0:
+            return messages
+        msg_time = [msg['DATETIME'] for msg in messages]
+        idx_sort = np.argsort(msg_time)
+        if (idx_sort != np.arange(len(messages))).any():
+            logging.info('Sorting messages according to time: {}'.format(idx_sort))
+            messages = np.array(messages)[idx_sort]
+        return messages
+
     def connect(self, **kwargs):
         """
         Connect to endpoint.

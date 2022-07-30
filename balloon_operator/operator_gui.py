@@ -989,6 +989,7 @@ class OperatorWidget(QWidget):
         if len(messages) > 0:
             logging.info('Received {} message(s).'.format(len(messages)))
             logging.info('Last: {}'.format(messages[-1]))
+            messages = message.Message.sortMessages(messages) # Sort messages according to time.
             is_invalid = np.zeros(len(messages), dtype=bool)
             for ind_msg in range(len(messages)):
                 msg = messages[ind_msg]
@@ -1199,7 +1200,7 @@ class OperatorWidget(QWidget):
     @Slot()
     def onComboPayloadChanged(self, value):
         print('onComboPayloadChanged', value) # DEBUG
-        if self.ui.layout_advanced_payload_status.itemAt(1): print(self.ui.layout_advanced_payload_status.itemAt(1).widget()) # DEBUG
+        if self.ui.layout_advanced_payload_status.count() > 1 and self.ui.layout_advanced_payload_status.itemAt(1): print(self.ui.layout_advanced_payload_status.itemAt(1).widget()) # DEBUG
         if self.ui.layout_advanced_payload_status.count() > 1 and self.payloadwidget:
             self.ui.layout_advanced_payload_status.removeWidget(self.payloadwidget)
             self.payloadwidget.setParent(None)
