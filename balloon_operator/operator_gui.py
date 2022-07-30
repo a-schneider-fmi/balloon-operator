@@ -489,7 +489,7 @@ class MainWidget(QWidget):
             parameters['top_altitude'],
             parameters['parachute_parameters'],
             hours,
-            self.timestep, self.model_path, parameters['output_file'],
+            self.timestep, parameters['model'], self.model_path, parameters['output_file'],
             descent_velocity=parameters['descent_velocity'])
         if hourly_track is None and callable(error_callback):
             error_callback('Necessary data could not be downloaded.')

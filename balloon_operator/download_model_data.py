@@ -84,6 +84,7 @@ def modelFilename(model_name, lon_range, lat_range, run_datetime, forecast_time,
     @param model_datetime datetime of the model run
     @param forecast_time forecast time (as int)
     @param model_resolution model resolution
+    @param format file extension indicating the format, default: 'grb2'
 
     @return filename
     """
@@ -218,7 +219,7 @@ def downloadGfsData(lon_range, lat_range, model_datetime, forecast_time, dest_di
     @return filename name of the downloaded file, or None if the requested data is not available
     """
     url = urlGfs(lon_range, lat_range, model_datetime, forecast_time, model_resolution)
-    filename = os.path.join(dest_dir,modelFilename('gfs', lon_range, lat_range, model_datetime, forecast_time, model_resolution))
+    filename = os.path.join(dest_dir,modelFilename('gfs', lon_range, lat_range, model_datetime, forecast_time, model_resolution=model_resolution))
     return downloadData(url, filename)
 
 
@@ -293,12 +294,13 @@ def getHarmonieData(launch_lon, launch_lat, launch_datetime, dest_dir, duration=
     @return filename the filename (inclusive path) of the downloaded file, or None if unsuccessful
     """
     lon_range, lat_range = getLonLatArea(launch_lon, launch_lat)
-    if launch_datetime is None:
-        model_datetime = None
-    else:
-        model_datetime = utils.roundHours(launch_datetime, 60)
-    filename = downloadHarmonieFmiData(lon_range, lat_range, model_datetime, dest_dir, duration=duration)
-    return filename
+    model_datetime = utils.roundHours(launch_datetime, 60)
+    filelist = []
+    for delta_t in range(duration):
+        filename = downloadHarmonieFmiData(lon_range, lat_range, model_datetime+datetime.timedelta(hours=delta_t), dest_dir, duration=0)
+        if filename is not None:
+            filelist.append(filename)
+    return filelist
 
 
 def getModelData(model_name, launch_lon, launch_lat, launch_datetime, dest_dir, duration=4):

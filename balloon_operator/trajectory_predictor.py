@@ -230,10 +230,37 @@ def readHarmonieGribDataFile(filename):
             'v_wind_ms': ds.v.data,
             'proj': proj, 'lev_type': 'hybrid'}
     ds.close()
+    if data['datetime'].ndim == 0: # If only one time step.
+        for key in data.keys():
+            if key not in ['x', 'y', 'hybrid', 'lon', 'lat', 'proj', 'lev_type'] and isinstance(data[key], np.ndarray):
+                data[key] = data[key].reshape((1,)+data[key].shape) # Create time dimension.
     # WORKAROUND: Overwrite faulty x and y values with ones projected from lon/lat.
     x, y = proj(data['lon'], data['lat'])
     data['x'] = x[0,:]
     data['y'] = y[:,0]
+    return data
+
+
+def readHarmonieDataFiles(filelist):
+    """
+    Read a collection of HARMONIE data files.
+    """
+    if isinstance(filelist,str):
+        filelist = [filelist]
+    data = None
+    for filename in filelist:
+        if os.path.splitext(filename)[1] == '.nc':
+            this_data = readHarmonieNcDataFile(filename)
+        else:
+            this_data = readHarmonieGribDataFile(filename)
+        if data is None:
+            data = this_data
+        else:
+            for key in this_data.keys():
+                if key in ['lon', 'lat', 'x', 'y', 'hybrid', 'proj', 'lev_type']:
+                    assert (data[key] == this_data[key]).all() if isinstance(data[key],np.ndarray) else (data[key] == this_data[key])
+                else:
+                    data[key] = np.concatenate((data[key], this_data[key]), axis=0)
     return data
 
 
@@ -242,7 +269,7 @@ Define supported models and their read functions.
 """
 readModelData = {
         'GFS': readGfsDataFiles,
-        'HARMONIE': readHarmonieGribDataFile}
+        'HARMONIE': readHarmonieDataFiles}
 
 
 def equidistantAltitudeGrid(start_datetime, start_altitude, end_altitude, ascent_velocity, timestep):
@@ -812,7 +839,7 @@ def hourlyForecast(
         payload_weight, payload_area, ascent_velocity, top_height,
         parachute_parameters,
         forecast_length,
-        timestep, model_path, output_file,
+        timestep, model_name, model_path, output_file,
         descent_velocity=None,
         webpage=None, upload=None):
     gpx = gpxpy.gpx.GPX()
@@ -826,11 +853,11 @@ def hourlyForecast(
     if launch_datetime is None:
         launch_datetime = utils.roundHours(datetime.datetime.utcnow(), 1) # Round current time up to next full hour.
     for i_hour in range(forecast_length):
-        filelist = download_model_data.getGfsData(launch_lon, launch_lat, launch_datetime, model_path)
-        if filelist is None or len(filelist) == 0:
+        filelist = download_model_data.getModelData(model_name, launch_lon, launch_lat, launch_datetime, model_path)
+        if filelist is None or (isinstance(filelist,list) and len(filelist) == 0):
             break
         logging.info('Forecast for launch at {} ...'.format(launch_datetime))
-        model_data = readGfsDataFiles(filelist)
+        model_data = readModelData[model_name.upper()](filelist)
         flight_track, flight_waypoints, flight_range = predictBalloonFlight(
             launch_datetime, launch_lon, launch_lat, launch_altitude,
             payload_weight, payload_area, ascent_velocity, top_height,
@@ -1303,7 +1330,7 @@ def main(launch_datetime, config_file='flight.ini', descent_only=False, hourly=F
             payload_weight, payload_area, ascent_velocity, top_height,
             parachute_parameters,
             hourly,
-            timestep, model_path, output_file,
+            timestep, model, model_path, output_file,
             descent_velocity=descent_velocity,
             webpage=webpage, upload=upload)
 
