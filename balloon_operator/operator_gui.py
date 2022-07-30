@@ -1240,7 +1240,14 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--config', required=False, default=None, help='Load configuration for operator from ini file')
     parser.add_argument('-b', '--balloon-param', required=False, default='totex_balloon_parameters.tsv', help='Balloon parameter file')
     parser.add_argument('--parachute-param', required=False, default='parachute_parameters.tsv', help='Parachute parameter file')
+    parser.add_argument('--log', required=False, default=None, help='Log level')
     args = parser.parse_args()
+
+    if args.log is not None:
+        numeric_level = getattr(logging, args.log.upper(), None)
+        if not isinstance(numeric_level, int):
+            raise ValueError('Invalid log level: {}'.format(args.log))
+        logging.basicConfig(level=numeric_level)
 
     app = QApplication(sys.argv)
 
