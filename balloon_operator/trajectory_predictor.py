@@ -365,7 +365,7 @@ def predictTrajectory(dt, altitude, model_data, lon_start, lat_start):
                 u = interp_u([grid_time, lev[ind], x, y])[0]
                 v = interp_v([grid_time, lev[ind], x, y])[0]
             except ValueError as err:
-                logging.error('Error interpolating winds: {}'.format(err))
+                logging.error('Error interpolating winds at {}, {}: {}'.format(x, y, err))
                 continue
             x += delta_t * u
             y += delta_t * v
@@ -375,7 +375,7 @@ def predictTrajectory(dt, altitude, model_data, lon_start, lat_start):
             else:
                 lon, lat = model_data['proj'](x, y, inverse=True)
             surface_elevation = srtm.get_elevation(lat, lon)
-            if surface_elevation is not None and altitude[ind] <= surface_elevation:
+            if surface_elevation is not None and altitude[-1] < altitude[0] and altitude[ind] <= surface_elevation:
                 # Compute after which fraction of the last time step the ground
                 # has been hit, and go back accordingly.
                 # This approach assumes no steep slopes.
