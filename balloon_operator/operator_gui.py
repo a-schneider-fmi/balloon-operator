@@ -1028,121 +1028,21 @@ class OperatorWidget(QWidget):
             if callable(error_callback):
                 error_callback('Cannot retrieve model data.')
             return
-        if self.top_point is None:
-            ind_top = trajectory_predictor.detectDescent(self.segment_tracked, self.flight_parameters['launch_alt'])
-            print('ind_top', ind_top) # DEBUG
-            if ind_top is not None: # descent detected
-                top_track_point = self.segment_tracked.points[ind_top]
-                self.top_point = gpxpy.gpx.GPXWaypoint(
-                            top_track_point.latitude, top_track_point.longitude,
-                            elevation=top_track_point.elevation,
-                            time=top_track_point.time,
-                            name='Ceiling')
-                self.ui.label_ascent_status_value.setText('descending')
-        if self.segment_tracked.points[-1].elevation > np.maximum(self.flight_parameters['top_altitude'], self.top_point.elevation if self.top_point is not None else 0.):
-            logging.info('Balloon above top altitude. Assuming descent is imminent.')
-            self.top_point = message.Message.message2waypoint(msg, name='Ceiling')
-        track = gpxpy.gpx.GPXTrack()
-        track.segments.append(self.segment_tracked)
-        waypoints = [self.launch_point]
-        if self.top_point is None:
-            waypoints.append(message.Message.message2waypoint(msg, name='Current'))
-            # Track if balloon is cut now.
-            track_cut = deepcopy(track)
-            segment_cut, lon_cut, lat_cut = trajectory_predictor.predictDescent(
-                    self.segment_tracked.points[-1].time,
-                    self.segment_tracked.points[-1].longitude,
-                    self.segment_tracked.points[-1].latitude,
-                    self.segment_tracked.points[-1].elevation,
-                    self.flight_parameters['descent_velocity'],
-                    self.flight_parameters['parachute_parameters'],
-                    self.flight_parameters['payload_weight'],
-                    self.flight_parameters['payload_area'],
-                    self.model_data,
-                    self.timestep)
-            track_cut.segments.append(segment_cut)
-            waypoints_cut = deepcopy(waypoints)
-            waypoints_cut.append(gpxpy.gpx.GPXWaypoint(
-                lat_cut, lon_cut,
-                elevation=segment_cut.points[-1].elevation,
-                time=segment_cut.points[-1].time, name='Landing (cut)'))
-            # Track if flight continues as planned.
-            segment_ascent, cur_lon, cur_lat, cur_datetime = trajectory_predictor.predictAscent(
-                    self.segment_tracked.points[-1].time,
-                    self.segment_tracked.points[-1].longitude,
-                    self.segment_tracked.points[-1].latitude,
-                    self.segment_tracked.points[-1].elevation,
-                    self.flight_parameters['top_altitude'],
-                    self.flight_parameters['ascent_velocity'],
-                    self.model_data,
-                    self.timestep)
-            track.segments.append(segment_ascent)
-            waypoints.append(gpxpy.gpx.GPXWaypoint(
-                    cur_lat, cur_lon, elevation=self.flight_parameters['top_altitude'], time=cur_datetime, name='Ceiling'))
-            initial_descent_velocity = 0.
-        else:
-            waypoints.append(self.top_point)
-            waypoints.append(message.Message.message2waypoint(msg, name='Current'))
-            cur_datetime = self.segment_tracked.points[-1].time
-            cur_lon = self.segment_tracked.points[-1].longitude
-            cur_lat = self.segment_tracked.points[-1].latitude
-            cur_alt = self.segment_tracked.points[-1].elevation
-            track_cut = None
-            initial_descent_velocity = (self.segment_tracked.points[-1].elevation - self.segment_tracked.points[-2].elevation) / (self.segment_tracked.points[-1].time - self.segment_tracked.points[-2].time).total_seconds()
-            print(initial_descent_velocity) # DEBUG
-        segment_descent, landing_lon, landing_lat = trajectory_predictor.predictDescent(
-                cur_datetime, cur_lon, cur_lat,
-                self.flight_parameters['top_altitude'] if self.top_point is None else cur_alt,
-                self.flight_parameters['descent_velocity'],
-                self.flight_parameters['parachute_parameters'],
+        is_ascending = self.top_point is None
+        self.launch_point, self.top_point, landing_point, flight_range = trajectory_predictor.doOneLivePrediction(
+                self.segment_tracked, msg, self.comm_settings,
+                self.launch_point, self.top_point,
                 self.flight_parameters['payload_weight'],
                 self.flight_parameters['payload_area'],
-                self.model_data,
-                self.timestep,
-                initial_velocity=initial_descent_velocity)
-        flight_range = geog.distance(
-                [self.flight_parameters['launch_lon'], self.flight_parameters['launch_lat']],
-                [landing_lon, landing_lat]) / 1000.
-        self.setLanding(segment_descent.points[-1].time, landing_lon, landing_lat, segment_descent.points[-1].elevation, flight_range)
-        track.segments.append(segment_descent)
-        waypoints.append(gpxpy.gpx.GPXWaypoint(
-                landing_lat, landing_lon,
-                elevation=segment_descent.points[-1].elevation,
-                time=segment_descent.points[-1].time, name='Landing'))
-        if self.comm_settings['output']['format'].lower() == 'kml':
-            trajectory_predictor.writeKml(
-                    track,
-                    os.path.join(self.comm_settings['output']['directory'], self.comm_settings['output']['filename']),
-                    waypoints=waypoints,
-                    networklink=self.comm_settings['webserver']['networklink'],
-                    refreshinterval=self.comm_settings['webserver']['refreshinterval'],
-                    upload=self.comm_settings['webserver'])
-            if track_cut:
-                trajectory_predictor.writeKml(
-                        track_cut,
-                        os.path.join(self.comm_settings['output']['directory'], os.path.splitext(self.comm_settings['output']['filename'])[0]+'-cut.kml'),
-                        waypoints=waypoints_cut,
-                        upload=self.comm_settings['webserver'])
-        else:
-            trajectory_predictor.writeGpx(
-                    track,
-                    os.path.join(self.comm_settings['output']['directory'], self.comm_settings['output']['filename']),
-                    waypoints=waypoints,
-                    upload=self.comm_settings['webserver'])
-            if track_cut:
-                trajectory_predictor.writeGpx(
-                        track_cut,
-                        os.path.join(self.comm_settings['output']['directory'], os.path.splitext(self.comm_settings['output']['filename'])[0]+'-cut.gpx'),
-                        waypoints=waypoints_cut,
-                        upload=self.comm_settings['webserver'])
-        if self.comm_settings['webserver']['webpage']:
-            if track_cut:
-                waypoints.append(waypoints_cut[-1]) # Add landing point if balloon is cut now.
-            trajectory_predictor.createWebpage(track,
-                          waypoints,
-                          self.comm_settings['webserver']['webpage'],
-                          upload=self.comm_settings['webserver'],
-                          track_cut=track_cut)
+                self.flight_parameters['ascent_velocity'],
+                self.flight_parameters['top_altitude'],
+                self.flight_parameters['parachute_parameters'],
+                self.model_data, self.timestep,
+                descent_velocity=self.flight_parameters['descent_velocity'])
+        if self.top_point is not None and is_ascending:
+            self.ui.label_ascent_status_value.setText('descending')
+            is_ascending = False
+        self.setLanding(landing_point.time, landing_point.longitude, landing_point.latitude, landing_point.elevation, flight_range)
 
     def sendIridiumMessage(self, imei, msg, username, password, progress_callback=None, error_callback=None):
         """

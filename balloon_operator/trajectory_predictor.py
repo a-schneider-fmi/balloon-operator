@@ -688,6 +688,137 @@ def messageHandlerFromSettings(settings):
     return message_handler
 
 
+def doOneLivePrediction(
+        segment_tracked, msg, comm_settings, launch_point, top_point,
+        payload_weight, payload_area, ascent_velocity, top_altitude,
+        parachute_parameters,
+        model_data, timestep,
+        descent_velocity=None):
+    """
+    Perform one live prediction from current location.
+    """
+    assert(len(segment_tracked.points) > 0)
+    if launch_point is None:
+        launch_point = gpxpy.gpx.GPXWaypoint(
+                segment_tracked.points[0].latitude,
+                segment_tracked.points[0].longitude,
+                elevation=segment_tracked.points[0].elevation,
+                time=segment_tracked.points[0].time,
+                name='Launch')
+    if top_point is None:
+        ind_top = detectDescent(segment_tracked, launch_point.elevation)
+        if ind_top is not None: # descent detected
+            top_track_point = segment_tracked.points[ind_top]
+            top_point = gpxpy.gpx.GPXWaypoint(
+                        top_track_point.latitude, top_track_point.longitude,
+                        elevation=top_track_point.elevation,
+                        time=top_track_point.time,
+                        name='Ceiling')
+    if segment_tracked.points[-1].elevation > np.maximum(top_altitude, top_point.elevation if top_point is not None else 0.):
+        logging.info('Balloon above top altitude. Assuming descent is imminent.')
+        top_point = message.Message.message2waypoint(msg, name='Ceiling')
+    track = gpxpy.gpx.GPXTrack()
+    track.segments.append(segment_tracked)
+    waypoints = [launch_point]
+    if top_point is None: # If balloon is on ascent.
+        waypoints.append(message.Message.message2waypoint(msg, name='Current'))
+        # Track if balloon is cut now.
+        track_cut = deepcopy(track)
+        segment_cut, lon_cut, lat_cut = predictDescent(
+                segment_tracked.points[-1].time,
+                segment_tracked.points[-1].longitude,
+                segment_tracked.points[-1].latitude,
+                segment_tracked.points[-1].elevation,
+                descent_velocity,
+                parachute_parameters,
+                payload_weight,
+                payload_area,
+                model_data,
+                timestep)
+        track_cut.segments.append(segment_cut)
+        waypoints_cut = deepcopy(waypoints)
+        waypoints_cut.append(gpxpy.gpx.GPXWaypoint(
+            lat_cut, lon_cut,
+            elevation=segment_cut.points[-1].elevation,
+            time=segment_cut.points[-1].time, name='Landing (cut)'))
+        # Track if flight continues as planned.
+        segment_ascent, cur_lon, cur_lat, cur_datetime = predictAscent(
+                segment_tracked.points[-1].time,
+                segment_tracked.points[-1].longitude,
+                segment_tracked.points[-1].latitude,
+                segment_tracked.points[-1].elevation,
+                top_altitude,
+                ascent_velocity,
+                model_data,
+                timestep)
+        track.segments.append(segment_ascent)
+        waypoints.append(gpxpy.gpx.GPXWaypoint(
+                cur_lat, cur_lon, elevation=top_altitude, time=cur_datetime, name='Ceiling'))
+        initial_descent_velocity = 0.
+    else: # If balloon is on descent.
+        waypoints.append(top_point)
+        waypoints.append(message.Message.message2waypoint(msg, name='Current'))
+        cur_datetime = segment_tracked.points[-1].time
+        cur_lon = segment_tracked.points[-1].longitude
+        cur_lat = segment_tracked.points[-1].latitude
+        cur_alt = segment_tracked.points[-1].elevation
+        track_cut = None
+        initial_descent_velocity = (segment_tracked.points[-1].elevation - segment_tracked.points[-2].elevation) / (segment_tracked.points[-1].time - segment_tracked.points[-2].time).total_seconds()
+    segment_descent, landing_lon, landing_lat = predictDescent(
+            cur_datetime, cur_lon, cur_lat,
+            top_altitude if top_point is None else cur_alt,
+            descent_velocity,
+            parachute_parameters,
+            payload_weight,
+            payload_area,
+            model_data,
+            timestep,
+            initial_velocity=initial_descent_velocity)
+    flight_range = geog.distance(
+            [launch_point.longitude, launch_point.latitude],
+            [landing_lon, landing_lat]) / 1000.
+    track.segments.append(segment_descent)
+    waypoints.append(gpxpy.gpx.GPXWaypoint(
+            landing_lat, landing_lon,
+            elevation=segment_descent.points[-1].elevation,
+            time=segment_descent.points[-1].time, name='Landing'))
+    if comm_settings['output']['format'].lower() == 'kml':
+        writeKml(
+                track,
+                os.path.join(comm_settings['output']['directory'], comm_settings['output']['filename']),
+                waypoints=waypoints,
+                networklink=comm_settings['webserver']['networklink'],
+                refreshinterval=comm_settings['webserver']['refreshinterval'],
+                upload=comm_settings['webserver'])
+        if track_cut:
+            writeKml(
+                    track_cut,
+                    os.path.join(comm_settings['output']['directory'], os.path.splitext(comm_settings['output']['filename'])[0]+'-cut.kml'),
+                    waypoints=waypoints_cut,
+                    upload=comm_settings['webserver'])
+    else:
+        writeGpx(
+                track,
+                os.path.join(comm_settings['output']['directory'], comm_settings['output']['filename']),
+                waypoints=waypoints,
+                upload=comm_settings['webserver'])
+        if track_cut:
+            writeGpx(
+                    track_cut,
+                    os.path.join(comm_settings['output']['directory'], os.path.splitext(comm_settings['output']['filename'])[0]+'-cut.gpx'),
+                    waypoints=waypoints_cut,
+                    upload=comm_settings['webserver'])
+    if comm_settings['webserver']['webpage']:
+        if track_cut:
+            waypoints.append(waypoints_cut[-1]) # Add landing point if balloon is cut now.
+        createWebpage(track,
+                      waypoints,
+                      comm_settings['webserver']['webpage'],
+                      upload=comm_settings['webserver'],
+                      track_cut=track_cut)
+    return launch_point, top_point, segment_descent.points[-1], flight_range
+
+
 def liveForecast(
         launch_datetime, launch_lon, launch_lat, launch_altitude,
         payload_weight, payload_area, ascent_velocity, top_height,
@@ -717,6 +848,11 @@ def liveForecast(
     """
     # Read communication configuration.
     settings = readCommSettings(ini_file)
+    if output_file:
+        settings['output']['directory'] = os.path.dirname(output_file)
+        settings['output']['filename'] = os.path.basename(output_file)
+    if kml_output:
+        settings['output']['format'] = 'kml'
     message_handler = messageHandlerFromSettings(settings)
 
     # Read model data.
@@ -732,10 +868,8 @@ def liveForecast(
     logging.info('Starting live forecast. Waiting for messages ...')
     message_handler.connect()
     segment_tracked = gpxpy.gpx.GPXTrackSegment()
-    is_ascending = True
-    cur_lon = launch_lon
-    cur_lat = launch_lat
-    cur_alt = launch_altitude
+    launch_point = None
+    top_point = None
     while True:
         try:
             messages = message_handler.getDecodedMessages()
@@ -754,80 +888,14 @@ def liveForecast(
                     msg = None
                     continue
                 msg = np.array(messages)[~is_invalid][-1] # last valid message
-                if is_ascending:
-                    ind_top = detectDescent(segment_tracked, launch_altitude)
-                    if ind_top is not None:
-                        is_ascending = False
-                        top_height = segment_tracked.points[ind_top].elevation
-                        top_lon = segment_tracked.points[ind_top].longitude
-                        top_lat = segment_tracked.points[ind_top].latitude
-                        top_datetime = segment_tracked.points[ind_top].time
-                        logging.info('Descent detected. Top altitude was at {:.0f} m.'.format(top_height))
-                cur_lon = segment_tracked.points[-1].longitude
-                cur_lat = segment_tracked.points[-1].latitude
-                cur_alt = segment_tracked.points[-1].elevation
-                cur_datetime = segment_tracked.points[-1].time
-                if cur_alt > top_height:
-                    logging.info('Balloon above top altitude. Assuming descent is imminent.')
-                    is_ascending = False
-                    top_lon = cur_lon
-                    top_lat = cur_lat
-                    top_height = cur_alt
-                    top_datetime = cur_datetime
-                waypoints = [gpxpy.gpx.GPXWaypoint(
-                        segment_tracked.points[0].latitude,
-                        segment_tracked.points[0].longitude,
-                        elevation=segment_tracked.points[0].elevation,
-                        time=segment_tracked.points[0].time,
-                        name='Launch')]
-                waypoints.append(message_handler.message2waypoint(msg, 'Current'))
-                track = gpxpy.gpx.GPXTrack()
-                track.segments.append(segment_tracked)
-                if is_ascending:
-                    # Track if balloon is cut now.
-                    track_cut = deepcopy(track)
-                    segment_cut, lon_cut, lat_cut = predictDescent(
-                        cur_datetime, cur_lon, cur_lat, cur_alt, descent_velocity, 
-                        parachute_parameters, payload_weight, payload_area, model_data, timestep)
-                    track_cut.segments.append(segment_cut)
-                    waypoints_cut = deepcopy(waypoints)
-                    waypoints_cut.append(gpxpy.gpx.GPXWaypoint(
-                        lat_cut, lon_cut,
-                        elevation=segment_cut.points[-1].elevation,
-                        time=segment_cut.points[-1].time, name='Landing (cut)'))
-                    # Track if flight continues as planned.
-                    segment_ascent, cur_lon, cur_lat, cur_datetime = predictAscent(cur_datetime, cur_lon, cur_lat, cur_alt, top_height, ascent_velocity, model_data, timestep)
-                    track.segments.append(segment_ascent)
-                    waypoints.append(gpxpy.gpx.GPXWaypoint(
-                            cur_lat, cur_lon, elevation=top_height, time=cur_datetime, name='Ceiling'))
-                    initial_velocity = 0.
-                else:
-                    waypoints.append(gpxpy.gpx.GPXWaypoint(
-                            top_lat, top_lon, elevation=top_height, time=top_datetime, name='Ceiling'))
-                    track_cut = None
-                    initial_velocity = (segment_tracked.points[-1].elevation - segment_tracked.points[-2].elevation) / (segment_tracked.points[-1].time - segment_tracked.points[-2].time).total_seconds()
-                segment_descent, landing_lon, landing_lat = predictDescent(
-                        cur_datetime, cur_lon, cur_lat, top_height if is_ascending else cur_alt, descent_velocity, 
-                        parachute_parameters, payload_weight, payload_area, model_data, timestep,
-                        initial_velocity=initial_velocity)
-                track.segments.append(segment_descent)
-                waypoints.append(gpxpy.gpx.GPXWaypoint(
-                        landing_lat, landing_lon,
-                        elevation=segment_descent.points[-1].elevation,
-                        time=segment_descent.points[-1].time, name='Landing'))
-                if kml_output:
-                    writeKml(track, os.path.join(settings['output']['directory'], output_file), waypoints=waypoints, networklink=settings['webserver']['networklink'], refreshinterval=settings['webserver']['refreshinterval'], upload=settings['webserver'] if settings['webserver']['protocol'] else None)
-                    if track_cut:
-                        writeKml(track_cut, os.path.join(settings['output']['directory'], os.path.splitext(output_file)[0]+'-cut.kml'), waypoints=waypoints_cut, upload=settings['webserver'] if settings['webserver']['protocol'] else None)
-                else:
-                    writeGpx(track, os.path.join(settings['output']['directory'], output_file), waypoints=waypoints, upload=settings['webserver'] if settings['webserver']['protocol'] else None)
-                    if track_cut:
-                        writeGpx(track_cut, os.path.join(settings['output']['directory'], os.path.splitext(output_file)[0]+'-cut.gpx'), waypoints=waypoints_cut, upload=settings['webserver'] if settings['webserver']['protocol'] else None)
-                if settings['webserver']['webpage']:
-                    if track_cut:
-                        waypoints.append(waypoints_cut[-1]) # Add landing point for cutting balloon now.
-                    createWebpage(track, waypoints, settings['webserver']['webpage'], upload=settings['webserver'] if settings['webserver']['protocol'] else None, track_cut=track_cut)
-        except Exception as err:
+                launch_point, top_point, landing_point, flight_range = doOneLivePrediction(
+                        segment_tracked, msg, settings, launch_point, top_point,
+                        payload_weight, payload_area, ascent_velocity, top_height,
+                        parachute_parameters,
+                        model_data, timestep,
+                        descent_velocity=descent_velocity)
+                logging.info('Forecasted landing at {:.5f}° {:.5f}° {:.0f} m, range {:.0f} km'.format(landing_point.longitude, landing_point.latitude, landing_point.elevation, flight_range))
+        except Exception:
             logging.critical('Exception occurred: {}'.format(traceback.format_exc()))
         time.sleep(settings['connection']['poll_time'])
             
