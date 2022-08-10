@@ -53,6 +53,7 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 * [gpxpy](https://github.com/tkrajina/gpxpy)
 * [srtm-python](https://github.com/aatishnn/srtm-python)
 * [simplekml](https://github.com/eisoldt/simplekml)
+* [cfgrib](https://github.com/ecmwf/cfgrib) for using HARMONIE model data
 * [paramiko](https://github.com/paramiko/paramiko) for uploading data with scp/sftp
 * [folium](https://github.com/python-visualization/folium) for creating web pages
 * [pyside6](https://doc.qt.io/qtforpython/) for the graphical user interface
@@ -60,6 +61,7 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 * [cartopy](https://scitools.org.uk/cartopy/docs/latest/) for exporting a map with the trajectory
 * [countries](https://github.com/che0/countries) if boundary crossing shall be determined
 * [gdal](https://gdal.org/) as dependency for `countries`
+
 Usually, these can be installed with `pip`:
 ```
 pip install numpy scipy requests pygrib geog gpxpy simplekml
