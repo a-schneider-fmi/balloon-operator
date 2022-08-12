@@ -387,7 +387,7 @@ class MessageSbd(message.Message):
         return msg
 
 
-    def connect(self, host=None, user=None, password=None):
+    def connect(self, host=None, user=None, password=None, old_ssl=True):
         """
         Connect to IMAP server.
 
@@ -397,7 +397,13 @@ class MessageSbd(message.Message):
 
         @return imap imaplib object
         """
-        self.imap = imaplib.IMAP4_SSL(host if host is not None else self.email_host) # connect to host using SSL
+        if old_ssl:
+            import ssl
+            ctx = ssl.create_default_context()
+            ctx.set_ciphers('DEFAULT')
+        else:
+            ctx = None
+        self.imap = imaplib.IMAP4_SSL(host if host is not None else self.email_host, ssl_context=ctx) # connect to host using SSL
         self.imap.login(user if user is not None else self.email_user,
                         password if password is not None else self.email_password) # login to server
     

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Module to upload files to external servers using various protocols.
+Module for communication with external servers using various protocols.
 
-Copyright (C) 2021 Andreas Schneider <andreas.schneider@fmi.fi>
+Copyright (C) 2021, 2022 Andreas Schneider <andreas.schneider@fmi.fi>
 
 This file is part of Balloon Operator.
 
@@ -21,6 +21,9 @@ Balloon Operator. If not, see <https://www.gnu.org/licenses/>.
 
 import io
 import os.path
+import configparser
+import tempfile
+from balloon_operator import message_sbd, message_file
 
 def uploadFtp(server_settings, filename, bio):
     """
@@ -85,3 +88,83 @@ def uploadFile(server_settings, filename, contents):
     else:
         print('Unknown protocol: {}'.format(server_settings['protocol']))
     return
+
+
+def readCommSettings(filename):
+    """
+    Load communication settings from an ini file.
+    """
+    settings = {
+            'connection': {
+                    'type': 'rockblock',
+                    'poll_time': 30
+                    },
+            'email': {
+                    'host': None,
+                    'user': None,
+                    'password': None,
+                    'from': '@rockblock.rock7.com'
+                    },
+            'rockblock': {
+                    'user': None,
+                    'password': None
+                    },
+            'file': {
+                    'path': None,
+                    'delimiter': '\t'
+                    },
+            'webserver': {
+                    'protocol': None,
+                    'host': None,
+                    'user': None,
+                    'password': None,
+                    'directory': None,
+                    'webpage': None,
+                    'networklink': None,
+                    'refreshinterval': None
+                    },
+            'output': {
+                    'format': 'gpx',
+                    'filename': 'trajectory.kml',
+                    'directory': tempfile.gettempdir()
+                    },
+            'geofence': {
+                    'radius': 0.
+                    }
+            }
+    config = configparser.ConfigParser()
+    config.read(filename)
+    for section in config.sections():
+        if section not in settings:
+            settings[section] = {}
+        for option in config.options(section):
+            if option in settings[section]: # if a default value exists
+                default_value = settings[section][option]
+            else:
+                default_value = None
+            if isinstance(default_value,float):
+                settings[section][option] = config[section].getfloat(option)
+            elif isinstance(default_value,int):
+                settings[section][option] = config[section].getint(option)
+            elif isinstance(default_value,bool):
+                settings[section][option] = config[section].getboolean(option)
+            else:
+                settings[section][option] = config[section].get(option)
+    return settings
+
+
+def messageHandlerFromSettings(settings):
+    """
+    Create a Message object corresponding to the given settings.
+    """
+    if settings['connection']['type'] == 'rockblock':
+        if settings['email']['host'] is None or settings['email']['user'] is None or settings['email']['password'] is None:
+            raise ValueError('Reception connection set to rockblock, but no complete email configuration is present.')
+        message_handler = message_sbd.fromSettings(settings)
+    elif settings['connection']['type'] == 'file':
+        message_handler = message_file.fromSettings(settings)
+        if settings['file']['path'] is None:
+            raise ValueError('Reception connection set to file, but no file path is given.')
+    else:
+        raise ValueError('Unknown connection type: {}'.format(settings['connection']['type']))
+    return message_handler

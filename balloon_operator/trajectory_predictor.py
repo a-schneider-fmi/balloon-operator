@@ -608,86 +608,6 @@ def detectDescent(segment_tracked, launch_altitude):
         return None
 
 
-def readCommSettings(filename):
-    """
-    Load communication settings from an ini file.
-    """
-    settings = {
-            'connection': {
-                    'type': 'rockblock',
-                    'poll_time': 30
-                    },
-            'email': {
-                    'host': None,
-                    'user': None,
-                    'password': None,
-                    'from': '@rockblock.rock7.com'
-                    },
-            'rockblock': {
-                    'user': None,
-                    'password': None
-                    },
-            'file': {
-                    'path': None,
-                    'delimiter': '\t'
-                    },
-            'webserver': {
-                    'protocol': None,
-                    'host': None,
-                    'user': None,
-                    'password': None,
-                    'directory': None,
-                    'webpage': None,
-                    'networklink': None,
-                    'refreshinterval': None
-                    },
-            'output': {
-                    'format': 'gpx',
-                    'filename': 'trajectory.kml',
-                    'directory': tempfile.gettempdir()
-                    },
-            'geofence': {
-                    'radius': 0.
-                    }
-            }
-    config = configparser.ConfigParser()
-    config.read(filename)
-    for section in config.sections():
-        if section not in settings:
-            settings[section] = {}
-        for option in config.options(section):
-            if option in settings[section]: # if a default value exists
-                default_value = settings[section][option]
-            else:
-                default_value = None
-            if isinstance(default_value,float):
-                settings[section][option] = config[section].getfloat(option)
-            elif isinstance(default_value,int):
-                settings[section][option] = config[section].getint(option)
-            elif isinstance(default_value,bool):
-                settings[section][option] = config[section].getboolean(option)
-            else:
-                settings[section][option] = config[section].get(option)
-    return settings
-
-
-def messageHandlerFromSettings(settings):
-    """
-    Create a Message object corresponding to the given settings.
-    """
-    if settings['connection']['type'] == 'rockblock':
-        if settings['email']['host'] is None or settings['email']['user'] is None or settings['email']['password'] is None:
-            raise ValueError('Reception connection set to rockblock, but no complete email configuration is present.')
-        message_handler = message_sbd.fromSettings(settings)
-    elif settings['connection']['type'] == 'file':
-        message_handler = message_file.fromSettings(settings)
-        if settings['file']['path'] is None:
-            raise ValueError('Reception connection set to file, but no file path is given.')
-    else:
-        raise ValueError('Unknown connection type: {}'.format(settings['connection']['type']))
-    return message_handler
-
-
 def doOneLivePrediction(
         segment_tracked, msg, comm_settings, launch_point, top_point,
         payload_weight, payload_area, ascent_velocity, top_altitude,
@@ -847,13 +767,13 @@ def liveForecast(
     @param kml_output whether to output kml istead of gpx (overwritten by configuration file)
     """
     # Read communication configuration.
-    settings = readCommSettings(ini_file)
+    settings = comm.readCommSettings(ini_file)
     if output_file:
         settings['output']['directory'] = os.path.dirname(output_file)
         settings['output']['filename'] = os.path.basename(output_file)
     if kml_output:
         settings['output']['format'] = 'kml'
-    message_handler = messageHandlerFromSettings(settings)
+    message_handler = comm.messageHandlerFromSettings(settings)
 
     # Read model data.
     if launch_datetime is None:

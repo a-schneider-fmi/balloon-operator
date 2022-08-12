@@ -27,7 +27,7 @@ from PySide6.QtUiTools import QUiLoader
 from gui_mainwidget import Ui_MainWidget
 from gui_operatorwidget import Ui_OperatorWidget
 import gui_icons
-from balloon_operator import filling, parachute, trajectory_predictor, download_model_data, message, message_sbd, utils
+from balloon_operator import filling, parachute, trajectory_predictor, download_model_data, message, message_sbd, utils, comm
 import configparser
 import datetime
 import argparse
@@ -766,9 +766,9 @@ class OperatorWidget(QWidget):
         """
         Load a communication configuration file.
         """
-        self.comm_settings = trajectory_predictor.readCommSettings(config_file)
+        self.comm_settings = comm.readCommSettings(config_file)
         try:
-            self.message_handler = trajectory_predictor.messageHandlerFromSettings(self.comm_settings)
+            self.message_handler = comm.messageHandlerFromSettings(self.comm_settings)
         except ValueError as err:
             QMessageBox.critical(self, 'Configuration error', err)
         self.loadIridiumList(config_file)
