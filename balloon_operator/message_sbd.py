@@ -233,7 +233,7 @@ class MessageSbd(message.Message):
     }
 
     def __init__(self, email_host=None, email_user=None, email_password=None,
-                 email_from='@rockblock.rock7.com',
+                 email_old_ssl=False, email_from='@rockblock.rock7.com',
                  rockblock_user=None, rockblock_password=None):
         """
         Constructor
@@ -243,9 +243,11 @@ class MessageSbd(message.Message):
         self.email_host = email_host
         self.email_user = email_user
         self.email_password = email_password
+        self.email_old_ssl = email_old_ssl
         self.email_from = email_from
         self.rockblock_user = rockblock_user
         self.rockblock_password = rockblock_password
+
 
     @staticmethod
     def asc2bin(msg_asc):
@@ -387,7 +389,7 @@ class MessageSbd(message.Message):
         return msg
 
 
-    def connect(self, host=None, user=None, password=None, old_ssl=True):
+    def connect(self, host=None, user=None, password=None, old_ssl=None):
         """
         Connect to IMAP server.
 
@@ -397,6 +399,8 @@ class MessageSbd(message.Message):
 
         @return imap imaplib object
         """
+        if old_ssl is None:
+            old_ssl = self.email_old_ssl
         if old_ssl:
             import ssl
             ctx = ssl.create_default_context()
@@ -547,6 +551,7 @@ def fromSettings(settings):
             email_host=settings['email']['host'],
             email_user=settings['email']['user'],
             email_password=settings['email']['password'],
+            email_old_ssl=settings['email']['old_ssl'],
             email_from=settings['email']['from'],
             rockblock_user=settings['rockblock']['user'],
             rockblock_password=settings['rockblock']['password'])

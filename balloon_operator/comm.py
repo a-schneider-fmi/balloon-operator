@@ -103,6 +103,7 @@ def readCommSettings(filename):
                     'host': None,
                     'user': None,
                     'password': None,
+                    'old_ssl': False,
                     'from': '@rockblock.rock7.com'
                     },
             'rockblock': {
