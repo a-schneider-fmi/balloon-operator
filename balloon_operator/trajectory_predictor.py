@@ -117,7 +117,8 @@ def readGfsDataFile(filename):
         u_wind[ind_level, :, :], v_wind[ind_level, :, :] = m2deg(lon, lat, u_wind[ind_level, :, :], v_wind[ind_level, :, :])
     return {'datetime': dt, 'press': np.array(levels)*100., 'lon': lon, 'lat': lat, # convert levels from hPa to Pa
             'surface_pressure': surface_pressure, 'surface_altitude': surface_altitude, 
-            'altitude': altitude, 'u_wind_deg': u_wind, 'v_wind_deg': v_wind}
+            'altitude': altitude, 'u_wind_deg': u_wind, 'v_wind_deg': v_wind,
+            'model_name': 'GFS'}
 
 
 def readGfsDataFiles(filelist):
@@ -150,7 +151,8 @@ def readGfsDataFiles(filelist):
                     'altitude': np.zeros((len(filelist),len(this_data['press']),len(this_data['lon']),len(this_data['lat']))),
                     'u_wind_deg': np.zeros((len(filelist),len(this_data['press']),len(this_data['lon']),len(this_data['lat']))),
                     'v_wind_deg': np.zeros((len(filelist),len(this_data['press']),len(this_data['lon']),len(this_data['lat']))),
-                    'proj': None, 'lev_type': 'press'}
+                    'proj': None, 'lev_type': 'press',
+                    'model_name': 'GFS'}
         data['datetime'][ind_file] = this_data['datetime']
         assert (data['press'].shape == this_data['press'].shape and (data['press'] == this_data['press']).all())
         assert (data['lon'].shape == this_data['lon'].shape and (data['lon'] == this_data['lon']).all())
@@ -197,7 +199,8 @@ def readHarmonieNcDataFile(filename):
             'sealevel_pressure': ds['air_pressure_at_sea_level_1'][:,:].filled(np.nan),
             'u_wind_ms': ds['eastward_wind_23'][:,:,:,:].filled(np.nan),
             'v_wind_ms': ds['northward_wind_24'][:,:,:,:].filled(np.nan),
-            'proj': proj, 'lev_type': 'hybrid'}
+            'proj': proj, 'lev_type': 'hybrid',
+            'model_name': 'HARMONIE'}
     ds.close()
     return data
 
@@ -228,7 +231,8 @@ def readHarmonieGribDataFile(filename):
             'altitude': ds.h.data,
             'u_wind_ms': ds.u.data,
             'v_wind_ms': ds.v.data,
-            'proj': proj, 'lev_type': 'hybrid'}
+            'proj': proj, 'lev_type': 'hybrid',
+            'model_name': 'HARMONIE'}
     ds.close()
     if data['datetime'].ndim == 0: # If only one time step.
         for key in data.keys():
@@ -257,7 +261,7 @@ def readHarmonieDataFiles(filelist):
             data = this_data
         else:
             for key in this_data.keys():
-                if key in ['lon', 'lat', 'x', 'y', 'hybrid', 'proj', 'lev_type']:
+                if key in ['lon', 'lat', 'x', 'y', 'hybrid', 'proj', 'lev_type', 'model_name']:
                     assert (data[key] == this_data[key]).all() if isinstance(data[key],np.ndarray) else (data[key] == this_data[key])
                 else:
                     data[key] = np.concatenate((data[key], this_data[key]), axis=0)
@@ -520,9 +524,9 @@ def predictBalloonFlight(
 
     # Add track description.
     flight_range = geog.distance([launch_lon, launch_lat], [landing_lon, landing_lat]) / 1000.
-    track.description = 'Predicted balloon trajectory, ' + \
+    track.description = 'Predicted balloon trajectory using {} model, '.format(model_data['model_name']) + \
         ('' if descent_only else 'ascent velocity {:.1f} m/s, '.format(ascent_velocity)) + \
-        'descent on parachute {}, '.format(parachute_parameters['name']) + \
+        ('descent velocity {:.1f} m/s, '.format(descent_velocity) if descent_velocity is not None else 'descent on parachute {}, '.format(parachute_parameters['name'])) + \
         'flight range {:.0f} km'.format(flight_range)
 
     return track, waypoints, flight_range
