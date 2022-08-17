@@ -612,6 +612,20 @@ def detectDescent(segment_tracked, launch_altitude):
         return None
 
 
+def lastVerticalVelocity(segment):
+    """
+    Compute vertical velocity at last part of segment
+
+    @param segment track segment as gpxpy.gpx.GPXTrackSegment object
+
+    @return velocity velocity at last point of the track
+    """
+    if len(segment.points) < 2:
+        return np.nan
+    else:
+        return (segment.points[-1].elevation - segment.points[-2].elevation) / (segment.points[-1].time - segment.points[-2].time).total_seconds()
+
+
 def doOneLivePrediction(
         segment_tracked, msg, comm_settings, launch_point, top_point,
         payload_weight, payload_area, ascent_velocity, top_altitude,
@@ -687,7 +701,7 @@ def doOneLivePrediction(
         cur_lat = segment_tracked.points[-1].latitude
         cur_alt = segment_tracked.points[-1].elevation
         track_cut = None
-        initial_descent_velocity = (segment_tracked.points[-1].elevation - segment_tracked.points[-2].elevation) / (segment_tracked.points[-1].time - segment_tracked.points[-2].time).total_seconds()
+        initial_descent_velocity = lastVerticalVelocity(segment_tracked)
     segment_descent, landing_lon, landing_lat = predictDescent(
             cur_datetime, cur_lon, cur_lat,
             top_altitude if top_point is None else cur_alt,

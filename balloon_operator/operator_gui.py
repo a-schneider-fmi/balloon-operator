@@ -354,7 +354,7 @@ class MainWidget(QWidget):
             filename = 'gui_drawing_one_balloon.svg'
         self.ui.widget_drawing.load(os.path.join(os.path.dirname(__file__),filename))
 
-    def setLanding(self, time, longitude, latitude, altitude, flight_range, border_crossing):
+    def setLanding(self, time, longitude, latitude, altitude, velocity, flight_range, border_crossing):
         """
         Set result section of UI.
         """
@@ -366,6 +366,8 @@ class MainWidget(QWidget):
                 '--' if latitude is None else '{:.5f}°'.format(latitude))
         self.ui.label_landing_altitude_value.setText(
                 '--' if altitude is None else '{:.0f} m'.format(altitude))
+        self.ui.label_landing_velocity_value.setText(
+                '--' if velocity is None else '{:.1f} m/s'.format(velocity))
         self.ui.label_range_value.setText(
                 '--' if flight_range is None else '{:.0f} km'.format(flight_range))
         self.ui.label_border_crossing_value.setText(
@@ -453,7 +455,14 @@ class MainWidget(QWidget):
             is_abroad = False
             foreign_countries = None
             border_crossing = None
-        self.setLanding(track.segments[-1].points[-1].time, track.segments[-1].points[-1].longitude, track.segments[-1].points[-1].latitude, track.segments[-1].points[-1].elevation, flight_range, border_crossing)
+        self.setLanding(
+                track.segments[-1].points[-1].time,
+                track.segments[-1].points[-1].longitude,
+                track.segments[-1].points[-1].latitude,
+                track.segments[-1].points[-1].elevation,
+                -trajectory_predictor.lastVerticalVelocity(track.segments[-1]),
+                flight_range,
+                border_crossing)
 
         # Save resulting trajectory.
         output_file = parameters['output_file']
