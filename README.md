@@ -172,6 +172,41 @@ parameter. See `gui_payloadwidget_wifvos.ui` and `payloadwidget_wifvos.py` for
 an example.
 
 
+## Message translator on Android
+
+The `message_translator_android.py` frontend allows to translate incoming messages
+from the balloon on your Android smartphone using the
+[Termux](https://github.com/termux/termux-app) app with the plugin
+[Termux:GUI](https://github.com/termux/termux-gui). Inside Termux, update
+the packages with
+```
+pkg upgrade
+```
+and install Python by
+```
+pkg install python
+```
+Upgrade pip with
+```
+pip install --upgrade pip
+```
+Install the required Python packages with pip:
+```
+pip install termuxgui requests gpxpy
+MATHLIB="m" pip install numpy
+```
+
+If you want to access the Python scripts via USB connection or with an external
+editor such as [ACode](https://acode.foxdebug.com/), you need to set up a
+folder for scripts under the shared storage `/storage/emulated/0`,
+e.g. `/storage/emulated/0/Python`. To this end, you need to give Termux the
+storage permission by the command `termux-setup-storage`.
+
+To check out Balloon Operator, it is convenient to install Git by `pkg install git`.
+
+To run the program, you have to set the PYTHONPATH to the balloon operator installation.
+
+
 ## Command-line tools
 
 ### Trajectory predictor
