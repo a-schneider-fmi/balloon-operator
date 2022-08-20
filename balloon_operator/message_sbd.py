@@ -213,6 +213,7 @@ class MessageSbd(message.Message):
             TrackerMessageFields.LON: 1e-7,
             TrackerMessageFields.ALT: 1e-3,
             TrackerMessageFields.HEAD: 1e-7,
+            TrackerMessageFields.PDOP: 1e-2,
             TrackerMessageFields.HITEMP: 1e-2,
             TrackerMessageFields.LOTEMP: 1e-2,
             TrackerMessageFields.HIHUMID: 1e-2,
@@ -311,7 +312,7 @@ class MessageSbd(message.Message):
         data = {}
         if msg[0] == TrackerMessageFields.STX.value:
             ind = 0
-        else: # assuming 
+        else: # assuming gateway header
             ind = 5
         assert(msg[ind] == TrackerMessageFields.STX.value)
         ind += 1
