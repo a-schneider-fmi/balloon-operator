@@ -53,6 +53,7 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 * [gpxpy](https://github.com/tkrajina/gpxpy)
 * [srtm-python](https://github.com/aatishnn/srtm-python)
 * [simplekml](https://github.com/eisoldt/simplekml)
+* [keyring](https://github.com/jaraco/keyring)
 * [cfgrib](https://github.com/ecmwf/cfgrib) for using HARMONIE model data
 * [paramiko](https://github.com/paramiko/paramiko) for uploading data with scp/sftp
 * [folium](https://github.com/python-visualization/folium) for creating web pages
@@ -64,7 +65,7 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 
 Usually, these can be installed with `pip`:
 ```
-pip install numpy scipy requests pygrib geog gpxpy simplekml
+pip install numpy scipy requests pygrib geog gpxpy simplekml keyring
 ```
 and if needed
 ```
@@ -83,7 +84,7 @@ are installed with `conda`, but some are not available in the standard channel.
 Thus:
 ```
 conda update --all
-conda install numpy scipy requests
+conda install numpy scipy requests keyring
 conda install -c conda-forge gpxpy simplekml pygrib
 pip install geog
 ```
@@ -112,7 +113,7 @@ Please note that the path can vary with your installation.
 On Linux, it is advisable to install Python packages through the system's
 packaging system. On Debian-based distributions (e.g. Ubuntu), the command is
 ```
-sudo apt install python3-numpy python3-scipy python3-requests python3-grib python3-gpxpy
+sudo apt install python3-numpy python3-scipy python3-requests python3-grib python3-gpxpy python3-keyring
 ```
 and if needed
 ```
@@ -130,6 +131,8 @@ interface, you have to compile some files. To do so, go into the
 `balloon_operator` directory and run `make_gui.bat`. This needs
 [Inkscape](https://inkscape.org/) to convert the app icon and Pyside6 (see
 above under Dependencies) to compile the UI.
+
+To run Balloon Operator, you may need to set the PYTHONPATH to the installation.
 
 
 ## Data
@@ -194,6 +197,8 @@ Install the required Python packages with pip:
 ```
 pip install termuxgui requests gpxpy
 MATHLIB="m" pip install numpy
+pkg install rust
+pip install keyring
 ```
 
 If you want to access the Python scripts via USB connection or with an external
@@ -204,7 +209,8 @@ storage permission by the command `termux-setup-storage`.
 
 To check out Balloon Operator, it is convenient to install Git by `pkg install git`.
 
-To run the program, you have to set the PYTHONPATH to the balloon operator installation.
+Arguments:
+* communication ini file as described below
 
 
 ## Command-line tools
@@ -252,8 +258,20 @@ The ini file for sending should have the following entries:
     * `imei`: The unique IMEI of the RockBLOCK to send to
 * options in section `rockblock`:
     * `user`: Rock 7 Core username
-    * `password`: Rock 7 Core password
-This is also compatible with the structure of the communication ini file.
+    * `password`: Rock 7 Core password; instead of saving the password unencrypted in the ini file, it is recommended to use the system keyring for encrypted password storage via the `credentials.py` script
+This is compatible with the structure of the communication ini file.
+
+
+### Password storing script
+
+The command-line tool `credentials.py` saves passwords encrypted in the system
+keyring. This should be preferred over saving the passwords in plain text in
+the communication ini file.
+
+Arguments:
+* `-e username` : store email password for username
+* `-r username` : store Rock 7 Core password for username
+* `-w username` : store webserver password for username
 
 
 ## File formats
@@ -293,11 +311,9 @@ An example is included in `comm.ini`. The configuration contains:
 * options in section `email`:
     * `host`: hostname to query mails with SBD messages via IMAP
     * `user`: username for IMAP
-    * `password`: password for IMAP
     * `from`: from address to be filtered for, e.g. `300123456789012@rockblock.rock7.com`
 * options in section `rockblock`:
     * `user`: username at Rock 7 Core (used to send messages to devices)
-    * `password`: password at Rock 7 Core (used to send messages to devices)
 * options in section `rockblock_devices`:
     * Provide a list of RockBLOCK devices in the format `Name = imei`
 * options in section `file`:
@@ -307,7 +323,7 @@ An example is included in `comm.ini`. The configuration contains:
     * `protocol`: protocol by which to upload data to webserver, `ftp`, `sftp` or `post`
     * `host`: hostname on which to upload results (or upload URL for post method)
     * `user`: username with which to login (FTP and SFTP)
-    * `password`: password (FTP and SFTP) or access token (post)
+    * `password`: password (FTP and SFTP) or access token (post); instead of saving the password unencrypted in the INI file, it is recommended to use the system keyring as described below
     * `directory`: (remote) directory to which to upload resulting files
     * `webpage`: file name for generated HTML file
     * `networklink`: URL for network link to include in KML file
@@ -319,6 +335,9 @@ An example is included in `comm.ini`. The configuration contains:
 * options in section `geofence`: in order to filter erroneous position messages
   during life forecast, a circular geofence can be lain around the launch position.
     * `radius`: radius of the circle around the launch point in km
+
+Passwords should be saved encrypted in the system keyring. To store them there,
+use the script `credentials.py`, see description above.
 
 ### Balloon parameter TSV file
 

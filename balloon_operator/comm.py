@@ -23,7 +23,7 @@ import io
 import os.path
 import configparser
 import tempfile
-from balloon_operator import message_sbd, message_file
+from balloon_operator import credentials, message_sbd, message_file
 
 def uploadFtp(server_settings, filename, bio):
     """
@@ -151,6 +151,10 @@ def readCommSettings(filename):
                 settings[section][option] = config[section].getboolean(option)
             else:
                 settings[section][option] = config[section].get(option)
+    # Get credentials.
+    for service in ['email', 'rockblock', 'webserver']:
+        if settings[service]['user'] and not settings[service]['password']:
+            settings[service]['password'] = credentials.getPassword(service, settings[service]['user'])
     return settings
 
 

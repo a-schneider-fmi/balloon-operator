@@ -562,12 +562,16 @@ def retrieveMessages(config_file, all_messges=False, gpx_output_file=None, csv_o
     """
     Retrieve messages and write out data.
     """
-    from balloon_operator import trajectory_predictor
+    from balloon_operator import trajectory_predictor, credentials
     config = configparser.ConfigParser()
     config.read(config_file)
+    if 'password' in config['email'] and config['email']['password']:
+        password = config['email']['password']
+    else:
+        password = credentials.getPassword('email', config['email']['user'])
     message_handler = MessageSbd(email_host=config['email']['host'],
                                  email_user=config['email']['user'],
-                                 email_password=config['email']['password'])
+                                 email_password=password)
     message_handler.connect()
     messages = message_handler.getDecodedMessages(from_address=config['email'].get('from', fallback='@rockblock.rock7.com'), unseen_only=not all_messges)
     message_handler.disconnect()
@@ -598,6 +602,7 @@ def encodeMessage(position=None, time=None, userfunc=None, output_file=None, sen
     Encode binary SBD message corresponding to given data
     and write it to file or send it to mobile IRIDIUM device.
     """
+    from balloon_operator import credentials
     data = {}
     if position is not None:
         data.update({
@@ -618,9 +623,13 @@ def encodeMessage(position=None, time=None, userfunc=None, output_file=None, sen
     if send:
         config = configparser.ConfigParser()
         config.read(send)
+        if 'password' in config['rockblock'] and config['rockblock']['password']:
+            password = config['rockblock']['password']
+        else:
+            password = credentials.getPassword('rockblock', config['rockblock']['user'])
         status, error_message = message_handler.sendMessage(
                 config['device']['imei'], message,
-                config['rockblock']['user'], config['rockblock']['password'])
+                config['rockblock']['user'], password)
         if status:
             print('Message sent.')
         else:
