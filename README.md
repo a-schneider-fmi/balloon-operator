@@ -166,13 +166,15 @@ cutters.
 
 Support for displaying custom payload-specific data exists. To this end, a
 widget named `gui_payloadwidget_name.ui` and a matching Python module
-`payloadwidget_name.py` are needed, where `name` has to be replaced with the
-actual payload name. The Python module needs to have a method
-`setPayloadData(payload_widget, data)`
-This method will be called by `OperatorWidget` when a new message arrives with
-the widget instance from QUiLoader as first parameter and the message as second
-parameter. See `gui_payloadwidget_wifvos.ui` and `payloadwidget_wifvos.py` for
-an example.
+`payloadwidget_name.py` are needed, where `name` has to be replaced by the
+actual payload name. The Python module needs to have a class `PayloadWidgetName`
+(where Name is replaced by the actual name) with a constructor
+`__init__(self, widget=None)` and a method `setPayloadData(data)`. This class
+is instantiated with the widget instance from QUiLoader as parameter when the
+specific payload is selected. The `setPayloadData` method is called by
+`OperatorWidget` when a new message arrives with the decoded message as
+parameter. An example is provided in `gui_payloadwidget_wifvos.ui` and
+`payloadwidget_wifvos.py`.
 
 
 ## Message translator on Android

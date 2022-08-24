@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>611</width>
-    <height>927</height>
+    <height>923</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -474,28 +474,28 @@
       <item row="1" column="1">
        <widget class="QLabel" name="label_landing_longitude_value">
         <property name="text">
-         <string>??</string>
+         <string/>
         </property>
        </widget>
       </item>
       <item row="2" column="1">
        <widget class="QLabel" name="label_landing_latitude_value">
         <property name="text">
-         <string>??</string>
+         <string/>
         </property>
        </widget>
       </item>
       <item row="3" column="1">
        <widget class="QLabel" name="label_landing_altitude_value">
         <property name="text">
-         <string>??</string>
+         <string/>
         </property>
        </widget>
       </item>
       <item row="5" column="1">
        <widget class="QLabel" name="label_range_value">
         <property name="text">
-         <string>??</string>
+         <string/>
         </property>
        </widget>
       </item>
@@ -509,14 +509,14 @@
       <item row="0" column="1">
        <widget class="QLabel" name="label_landing_time_value">
         <property name="text">
-         <string>??</string>
+         <string/>
         </property>
        </widget>
       </item>
       <item row="6" column="1">
        <widget class="QLabel" name="label_border_crossing_value">
         <property name="text">
-         <string>??</string>
+         <string/>
         </property>
        </widget>
       </item>
@@ -540,7 +540,7 @@
       <item row="4" column="1">
        <widget class="QLabel" name="label_landing_velocity_value">
         <property name="text">
-         <string>??</string>
+         <string/>
         </property>
        </widget>
       </item>
@@ -663,7 +663,7 @@
         <item row="0" column="1">
          <widget class="QLabel" name="label_asc_fill_volume_value">
           <property name="text">
-           <string>?? m3</string>
+           <string/>
           </property>
          </widget>
         </item>
@@ -677,7 +677,7 @@
         <item row="1" column="1">
          <widget class="QLabel" name="label_asc_lift_value">
           <property name="text">
-           <string>?? kg</string>
+           <string/>
           </property>
          </widget>
         </item>
@@ -691,14 +691,14 @@
         <item row="2" column="1">
          <widget class="QLabel" name="label_asc_burst_height_value">
           <property name="text">
-           <string>?? m</string>
+           <string/>
           </property>
          </widget>
         </item>
         <item row="3" column="0">
          <widget class="QLabel" name="label_desc_fill_volume">
           <property name="text">
-           <string>Desccent fill volume</string>
+           <string>Descent fill volume</string>
           </property>
          </widget>
         </item>

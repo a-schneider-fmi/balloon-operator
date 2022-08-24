@@ -21,7 +21,7 @@ Balloon Operator. If not, see <https://www.gnu.org/licenses/>.
 
 import sys
 from PySide6.QtWidgets import QApplication, QWidget, QFileDialog, QMessageBox
-from PySide6.QtCore import Slot, Signal, QObject, QRunnable, QThreadPool, QTimer, QFile
+from PySide6.QtCore import Slot, Signal, QObject, QRunnable, QThreadPool, QTimer, QFile, QLocale, QTranslator
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtUiTools import QUiLoader
 from gui_mainwidget import Ui_MainWidget
@@ -38,8 +38,6 @@ import traceback
 import logging
 import gpxpy
 import gpxpy.gpx
-import geog
-from copy import deepcopy
 import glob
 import importlib.util
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
@@ -118,7 +116,7 @@ class MainWidget(QWidget):
         super(MainWidget, self).__init__()
         self.ui = Ui_MainWidget()
         self.ui.setupUi(self)
-        self.setWindowIcon(QIcon(QPixmap(":/icons/icon.png")))
+        self.setWindowIcon(QIcon(QPixmap(':/icons/icon.png')))
         self.operator_widget = OperatorWidget()
         self.operator_widget.stopLiveOperation.connect(self.onStopLiveOperation)
 
@@ -235,7 +233,7 @@ class MainWidget(QWidget):
                 self.ui.spin_cut_altitude.setEnabled(False)
                 self.ui.spin_cut_altitude.setValue(0.)
         except KeyError:
-            QMessageBox.warning(self, 'Loading payload data', 'The file misses essential information.')
+            QMessageBox.warning(self, self.tr('Loading payload data'), self.tr('The file misses essential information.'))
         self.blockSignals(False)
         self.computeBalloonPerformance()
         if 'parameters' in config:
@@ -322,27 +320,27 @@ class MainWidget(QWidget):
         if cut_altitude is not None:
             if ascent_burst_height < cut_altitude + 1000.:
                 self.ui.label_balloon_performance_warning.setText(
-                        'Ascent balloon bursts too early.')
+                        self.tr('Ascent balloon bursts too early.'))
             elif descent_burst_height is not None and descent_burst_height < cut_altitude + 1000.:
                 self.ui.label_balloon_performance_warning.setText(
-                        'Descent balloon bursts too early.')
+                        self.tr('Descent balloon bursts too early.'))
             elif descent_burst_height is not None and descent_burst_height - ascent_burst_height < 1000.:
                 self.ui.label_balloon_performance_warning.setText(
-                        'Descent balloon bursts before ascent balloon.')
+                        self.tr('Descent balloon bursts before ascent balloon.'))
             else:
                 self.ui.label_balloon_performance_warning.setText('')
         else:
             if descent_burst_height is not None:
                 self.ui.label_balloon_performance_warning.setText(
-                        'Cutter recommended for two-balloon flight.')
+                        self.tr('Cutter recommended for two-balloon flight.'))
             else:
                 self.ui.label_balloon_performance_warning.setText('')
         if descent_burst_height is not None and self.balloon_performance['descent_velocity'] <= 0:
             self.ui.label_balloon_performance_warning.setText(
-                    'Descent velocity must be positive.')
+                    self.tr('Descent velocity must be positive.'))
         if self.balloon_performance['ascent_velocity'] <= 0:
             self.ui.label_balloon_performance_warning.setText(
-                    'Ascent velocity must be positive.')
+                    self.tr('Ascent velocity must be positive.'))
 
     def setBalloonPicture(self, has_descent_balloon):
         """
@@ -425,7 +423,7 @@ class MainWidget(QWidget):
                 parameters['launch_datetime'], self.model_path)
         if model_filenames is None or (isinstance(model_filenames,list) and (model_filenames) == 0):
             if callable(error_callback):
-                error_callback('Error retrieving model data.')
+                error_callback(self.tr('Error retrieving model data.'))
             return None
         model_data = trajectory_predictor.readModelData[parameters['model']](model_filenames)
     
@@ -443,9 +441,9 @@ class MainWidget(QWidget):
             try:
                 is_abroad, foreign_countries = trajectory_predictor.checkBorderCrossing(track)
                 if is_abroad.any():
-                    border_crossing = 'crossed into {}'.format(', '.join(foreign_countries))
+                    border_crossing = self.tr('crossed into {}').format(', '.join(foreign_countries))
                 else:
-                    border_crossing = 'domestic'
+                    border_crossing = self.tr('domestic')
             except Exception as err:
                 print('Error determining border crossing: {}'.format(err))
                 border_crossing = None
@@ -501,14 +499,14 @@ class MainWidget(QWidget):
             self.timestep, parameters['model'], self.model_path, parameters['output_file'],
             descent_velocity=parameters['descent_velocity'])
         if hourly_track is None and callable(error_callback):
-            error_callback('Necessary data could not be downloaded.')
+            error_callback(self.tr('Necessary data could not be downloaded.'))
 
     @Slot()
     def onLoadPayload(self):
         """
         Callback when clicking the load payload button.
         """
-        filename, filetype = QFileDialog.getOpenFileName(self, 'Open payload information', None, 'Configuration files (*.ini);;All files (*)')
+        filename, filetype = QFileDialog.getOpenFileName(self, self.tr('Open payload information'), None, self.tr('Configuration files (*.ini);;All files (*)'))
         if filename:
             self.loadPayloadIni(filename)
 
@@ -517,7 +515,7 @@ class MainWidget(QWidget):
         """
         Callback when clicking the save payload button.
         """
-        filename, filetype = QFileDialog.getSaveFileName(self, 'Save payload information', None, 'Configuration files (*.ini);;All files (*)')
+        filename, filetype = QFileDialog.getSaveFileName(self, self.tr('Save payload information'), None, self.tr('Configuration files (*.ini);;All files (*)'))
         if filename:
             if os.path.splitext(filename)[1].lower() != '.ini':
                 filename += '.ini'
@@ -563,11 +561,11 @@ class MainWidget(QWidget):
         """
         Callback when the button to select an output file is clicked.
         """
-        output_file, filetype = QFileDialog.getSaveFileName(self, 'Save trajectory', os.path.dirname(self.ui.edit_output_file.text()), 'GPX tracks (*.gpx);;KML tracks (*.kml)')
+        output_file, filetype = QFileDialog.getSaveFileName(self, self.tr('Save trajectory'), os.path.dirname(self.ui.edit_output_file.text()), self.tr('GPX tracks (*.gpx);;KML tracks (*.kml)'))
         if output_file:
-            if filetype == 'GPX tracks (*.gpx)' and os.path.splitext(output_file)[1].lower() != '.gpx':
+            if filetype == self.tr('GPX tracks (*.gpx)') and os.path.splitext(output_file)[1].lower() != '.gpx':
                 output_file += '.gpx'
-            if filetype == 'KML tracks (*.kml)' and os.path.splitext(output_file)[1].lower() != '.kml':
+            if filetype == self.tr('KML tracks (*.kml)') and os.path.splitext(output_file)[1].lower() != '.kml':
                 output_file += '.kml'
             self.ui.edit_output_file.setText(output_file)
 
@@ -584,7 +582,7 @@ class MainWidget(QWidget):
         """
         Callback when the button to select a webpage file name is clicked.
         """
-        webpage_file, filetype = QFileDialog.getSaveFileName(self, 'Save webpage', os.path.dirname(self.ui.edit_webpage_file.text()), 'Webpages (*.html)')
+        webpage_file, filetype = QFileDialog.getSaveFileName(self, self.tr('Save webpage'), os.path.dirname(self.ui.edit_webpage_file.text()), self.tr('Webpages (*.html)'))
         if webpage_file:
             fileext = os.path.splitext(webpage_file)[1].lower()
             if fileext != '.html' and fileext != '.htm':
@@ -604,7 +602,7 @@ class MainWidget(QWidget):
         """
         Callback when the button to select a map file name is clicked.
         """
-        filename, filetype = QFileDialog.getSaveFileName(self, 'Save map image', os.path.dirname(self.ui.edit_map_file.text()), 'Images (*.png)')
+        filename, filetype = QFileDialog.getSaveFileName(self, self.tr('Save map image'), os.path.dirname(self.ui.edit_map_file.text()), self.tr('Images (*.png)'))
         if filename:
             fileext = os.path.splitext(filename)[1].lower()
             if fileext != '.png':
@@ -624,7 +622,7 @@ class MainWidget(QWidget):
         """
         Callback when the button to select a tsv output file name is clicked.
         """
-        filename, filetype = QFileDialog.getSaveFileName(self, 'Save tsv', os.path.dirname(self.ui.edit_tsv_file.text()), 'Tabular separated values (*.tsv)')
+        filename, filetype = QFileDialog.getSaveFileName(self, self.tr('Save tsv'), os.path.dirname(self.ui.edit_tsv_file.text()), self.tr('Tabular separated values (*.tsv)'))
         if filename:
             fileext = os.path.splitext(filename)[1].lower()
             if fileext != '.tsv':
@@ -674,7 +672,7 @@ class MainWidget(QWidget):
         Callback when the button to do live operation is clicked.
         """
         if not self.balloon_performance:
-            QMessageBox.critical(self, 'Live operation', 'Flight data not set. Please make the respective settings first.')
+            QMessageBox.critical(self, self.tr('Live operation'), self.tr('Flight data not set. Please make the respective settings first.'))
             return
         self.ui.button_live_operation.setEnabled(False)
         self.operator_widget.startLiveForecast(self.flightParameters(), self.model_path, self.timestep)
@@ -691,7 +689,7 @@ class MainWidget(QWidget):
         """
         Callback to be executed when a thread produces an error.
         """
-        QMessageBox.critical(self, 'Balloon operator', message)
+        QMessageBox.critical(self, self.tr('Balloon operator'), message)
 
 
 """ OperatorWidget ============================================================
@@ -762,6 +760,7 @@ class OperatorWidget(QWidget):
             self.ui.combo_payload_type.addItem(name, widget_file)
         self.ui.combo_payload_type.activated.connect(self.onComboPayloadChanged)
         self.payloadwidget = None
+        self.payloadwidget_instance = None
 
     stopLiveOperation = Signal()
 
@@ -779,12 +778,12 @@ class OperatorWidget(QWidget):
         try:
             self.message_handler = comm.messageHandlerFromSettings(self.comm_settings)
         except ValueError as err:
-            QMessageBox.critical(self, 'Configuration error', err)
+            QMessageBox.critical(self, self.tr('Configuration error'), err)
         self.loadIridiumList(config_file)
         if isinstance(self.message_handler,message_sbd.MessageSbd):
-            self.ui.label_id.setText('IMEI')
+            self.ui.label_id.setText(self.tr('IMEI'))
         else:
-            self.ui.label_id.setText('Tracker ID')
+            self.ui.label_id.setText(self.tr('Tracker ID'))
 
     def loadIridiumList(self, config_file):
         """
@@ -802,17 +801,17 @@ class OperatorWidget(QWidget):
                 self.ui.combo_iridium.addItem('{} ({})'.format(name, imei), imei)
                 self.ui.combo_receive_imei.addItem('{} ({})'.format(name, imei), str(imei))
 
-    def _cutterStateText(self, state):
+    def cutterStateText(self, state):
         """
         Textual representation of cutter state
         """
-        return 'fired' if state else 'not fired'
+        return self.tr('fired') if state else self.tr('not fired')
 
-    def _heatingStateText(self, state):
+    def heatingStateText(self, state):
         """
         Textual representation of heating state
         """
-        return 'on' if state else 'off'
+        return self.tr('on') if state else self.tr('off')
 
     def setStandardData(self, data):
         """
@@ -843,13 +842,13 @@ class OperatorWidget(QWidget):
                 '{:.2f} V'.format(data['BATTV']) if 'BATTV' in data
                 else '?? V')
         self.ui.label_cur_cutter1_value.setText(
-                self._cutterStateText(data['USERVAL1'] & 1) if 'USERVAL1' in data
+                self.cutterStateText(data['USERVAL1'] & 1) if 'USERVAL1' in data
                 else '??')
         self.ui.label_cur_cutter2_value.setText(
-                self._cutterStateText(data['USERVAL1'] & 2) if 'USERVAL1' in data
+                self.cutterStateText(data['USERVAL1'] & 2) if 'USERVAL1' in data
                 else '??')
         self.ui.label_cur_heating_value.setText(
-                self._heatingStateText(data['USERVAL1'] & 4) if 'USERVAL1' in data
+                self.heatingStateText(data['USERVAL1'] & 4) if 'USERVAL1' in data
                 else '??')
         self.ui.label_id_value.setText(
                 '{}'.format(data['IMEI']) if 'IMEI' in data
@@ -859,20 +858,8 @@ class OperatorWidget(QWidget):
         """
         Sets advanced (per-payload) data from a received IRIDIUM message.
         """
-        payload_widget_file = self.ui.combo_payload_type.currentData()
-        if payload_widget_file is not None:
-            try:
-                dirname = os.path.dirname(payload_widget_file)
-                module_name = os.path.splitext(os.path.basename(payload_widget_file))[0][4:]
-                filename = os.path.join(dirname, module_name+'.py')
-                print('Loading module: {}'.format(module_name)) # DEBUG
-                spec = importlib.util.spec_from_file_location(module_name, filename)
-                widget_code = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(widget_code)
-            except Exception as err:
-                print('Exception while loading payload module {}: {}'.format(module_name, err))
-                return
-            widget_code.setPayloadData(self.payloadwidget, data)
+        if self.payloadwidget_instance is not None:
+            self.payloadwidget_instance.setPayloadData(data)
 
     def appendTimeseries(self, data):
         """
@@ -926,7 +913,7 @@ class OperatorWidget(QWidget):
         """
         Downloads model data for live forecast.
         """
-        self.ui.label_status.setText('Downloading model data.')
+        self.ui.label_status.setText(self.tr('Downloading model data.'))
         if self.flight_parameters['launch_datetime'] is None:
             self.flight_parameters['launch_datetime'] = datetime.datetime.utcnow()
         filelist = download_model_data.getModelData(
@@ -938,7 +925,7 @@ class OperatorWidget(QWidget):
                 duration=7)
         if filelist is None or (isinstance(filelist,list) and len(filelist) == 0):
             if callable(error_callback):
-                error_callback('Error downloading model data.')
+                error_callback(self.tr('Error downloading model data.'))
             return
         self.model_data = trajectory_predictor.readModelData[self.flight_parameters['model']](filelist)
 
@@ -963,13 +950,13 @@ class OperatorWidget(QWidget):
                 name='Launch')
         self.top_point = None
         self.timeseries = {'DATETIME': [], 'PRESS': [], 'ALT': [], 'TEMP': [], 'BATTV': []}
-        self.ui.label_ascent_status_value.setText('ascending')
+        self.ui.label_ascent_status_value.setText(self.tr('ascending'))
         if self.comm_settings is None:
             self.onLoadConfig()
         try:
             self.message_handler.connect()
         except Exception as err:
-            QMessageBox.critical(self, 'Connection error', f'Cannot connect to IMAP server: {err}')
+            QMessageBox.critical(self, self.tr('Connection error'), self.tr('Cannot connect to IMAP server: {}').format(err))
             self.stopLiveForecast()
             return
         worker = Worker(self.downloadModelData, error_callback=self.showError)
@@ -1029,13 +1016,13 @@ class OperatorWidget(QWidget):
         This function is usually started in a separate worker thread.
         """
         print('Starting forecast from message: {}'.format(msg)) # DEBUG
-        self.ui.label_status.setText('Computing trajectory forecast.')
+        self.ui.label_status.setText(self.tr('Computing trajectory forecast.'))
         if self.model_data is None:
             print('No model data present, downloading.') # DEBUG
             self.downloadModelData(error_callback=error_callback)
         if self.model_data is None:
             if callable(error_callback):
-                error_callback('Cannot retrieve model data.')
+                error_callback(self.tr('Cannot retrieve model data.'))
             return
         is_ascending = self.top_point is None
         self.launch_point, self.top_point, landing_point, flight_range = trajectory_predictor.doOneLivePrediction(
@@ -1049,7 +1036,7 @@ class OperatorWidget(QWidget):
                 self.model_data, self.timestep,
                 descent_velocity=self.flight_parameters['descent_velocity'])
         if self.top_point is not None and is_ascending:
-            self.ui.label_ascent_status_value.setText('descending')
+            self.ui.label_ascent_status_value.setText(self.tr('descending'))
             is_ascending = False
         self.setLanding(landing_point.time, landing_point.longitude, landing_point.latitude, landing_point.elevation, flight_range)
 
@@ -1060,18 +1047,18 @@ class OperatorWidget(QWidget):
         """
         success, message = self.message_handler.sendMessage(imei, msg, username, password)
         if success:
-            self.ui.label_status.setText('Message sent.')
+            self.ui.label_status.setText(self.tr('Message sent.'))
         else:
-            self.ui.label_status.setText('Sending message failed.')
+            self.ui.label_status.setText(self.tr('Sending message failed.'))
             if callable(error_callback):
-                error_callback('Failed to send message: {}'.format(message))
+                error_callback(self.tr('Failed to send message: {}').format(message))
 
     @Slot()
     def onLoadConfig(self):
         """
         Callback for load config button.
         """
-        filename, filetype = QFileDialog.getOpenFileName(self, 'Open communication settings', None, 'Configuration files (*.ini);;All files (*)')
+        filename, filetype = QFileDialog.getOpenFileName(self, self.tr('Open communication settings'), None, self.tr('Configuration files (*.ini);;All files (*)'))
         if filename:
             self.loadConfig(filename)
 
@@ -1102,7 +1089,7 @@ class OperatorWidget(QWidget):
         msg = self.message_handler.encodeMessage(data)
         imei = self.ui.combo_iridium.currentData()
         logging.info('Sending message "{}" to IMEI {} ...'.format(message_sbd.MessageSbd.bin2asc(msg), imei))
-        self.ui.label_status.setText('Sending message ...')
+        self.ui.label_status.setText(self.tr('Sending message ...'))
         worker = Worker(self.sendIridiumMessage, imei, msg, self.comm_settings['rockblock']['user'], self.comm_settings['rockblock']['password'], error_callback=self.showError)
         self.threadpool.start(worker)
 
@@ -1112,33 +1099,45 @@ class OperatorWidget(QWidget):
         if self.ui.layout_advanced_payload_status.count() > 1 and self.ui.layout_advanced_payload_status.itemAt(1): print(self.ui.layout_advanced_payload_status.itemAt(1).widget()) # DEBUG
         if self.ui.layout_advanced_payload_status.count() > 1 and self.payloadwidget:
             self.ui.layout_advanced_payload_status.removeWidget(self.payloadwidget)
+            self.payloadwidget_instance = None
             self.payloadwidget.setParent(None)
             self.payloadwidget = None
         filename = self.ui.combo_payload_type.currentData()
+        name = self.ui.combo_payload_type.currentText()
         if filename is not None:
             ui_file = QFile(filename)
             if not ui_file.open(QFile.ReadOnly):
-                QMessageBox.critical(self, 'Internal error', f'Cannot open {filename}: {ui_file.errorString()}')
+                QMessageBox.critical(self, self.tr('Internal error'), self.tr('Cannot open {}: {}').format(filename, ui_file.errorString()))
                 return
             loader = QUiLoader()
             self.payloadwidget = loader.load(ui_file)
             ui_file.close()
-            self.payloadwidget.show()
-            self.ui.layout_advanced_payload_status.addWidget(self.payloadwidget)
+            if not self.payloadwidget:
+                QMessageBox.critical(self, self.tr('Balloon operator'), self.tr('Error loading widget from {}: {}').format(ui_file, loader.ErrorString()))
+                self.payloadwidget = None
+            else:
+                self.payloadwidget.show()
+                self.ui.layout_advanced_payload_status.addWidget(self.payloadwidget)
+                assert(name is not None)
+                module_name = os.path.splitext(os.path.basename(filename))[0][4:]
+                module = __import__(module_name)
+                class_name = 'PayloadWidget'+name
+                the_class = getattr(module, class_name)
+                self.payloadwidget_instance = the_class(self.payloadwidget)
 
     @Slot()
     def onWorkerFinished(self):
         """
         Callback to be executed when a thread finishes.
         """
-        self.ui.label_status.setText('Idle.')
+        self.ui.label_status.setText(self.tr('Idle.'))
 
     @Slot()
     def showError(self, message):
         """
         Callback to be executed when a thread produces an error.
         """
-        QMessageBox.critical(self, 'Balloon operator', message)
+        QMessageBox.critical(self, self.tr('Balloon operator'), message)
 
 
 """ Script main ===============================================================
@@ -1159,6 +1158,10 @@ if __name__ == "__main__":
         logging.basicConfig(level=numeric_level)
 
     app = QApplication(sys.argv)
+
+    app_translator = QTranslator(app)
+    r = app_translator.load(QLocale.system().name(), 'i18n')
+    app.installTranslator(app_translator)
 
     main_widget = MainWidget()
     if args.payload:
