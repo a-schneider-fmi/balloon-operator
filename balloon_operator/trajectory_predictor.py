@@ -1135,7 +1135,7 @@ def exportImage(track, output_file, waypoints=None, bb=None):
     launch_time = track.segments[0].points[0].time
 
     if bb is None:
-        lon_range, lat_range = download_model_data.getModelArea(lons[0], lats[0], radius=300.)
+        lon_range, lat_range = download_model_data.getLonLatArea(lons[0], lats[0], radius=300.)
         bb = lon_range + lat_range
 
     # Do plot.
