@@ -112,7 +112,7 @@ class Worker(QRunnable):
 """ MainWidget ================================================================
 """
 class MainWidget(QWidget):
-    def __init__(self):
+    def __init__(self, output_dir=tempfile.gettempdir()):
         super(MainWidget, self).__init__()
         self.ui = Ui_MainWidget()
         self.ui.setupUi(self)
@@ -123,10 +123,10 @@ class MainWidget(QWidget):
         self.ui.dt_launch_datetime.setDateTime(utils.roundSeconds(datetime.datetime.utcnow()))
         for fill_gas in filling.FillGas:
             self.ui.combo_fill_gas.addItem(filling.fill_gas_names[fill_gas], fill_gas)
-        self.ui.edit_output_file.setText(os.path.join(tempfile.gettempdir(), 'trajectory.gpx'))
-        self.ui.edit_webpage_file.setText(os.path.join(tempfile.gettempdir(), 'trajectory.html'))
-        self.ui.edit_map_file.setText(os.path.join(tempfile.gettempdir(), 'trajectory.png'))
-        self.ui.edit_tsv_file.setText(os.path.join(tempfile.gettempdir(), 'trajectory.tsv'))
+        self.ui.edit_output_file.setText(os.path.join(output_dir, 'trajectory.gpx'))
+        self.ui.edit_webpage_file.setText(os.path.join(output_dir, 'trajectory.html'))
+        self.ui.edit_map_file.setText(os.path.join(output_dir, 'trajectory.png'))
+        self.ui.edit_tsv_file.setText(os.path.join(output_dir, 'trajectory.tsv'))
         self.balloon_parameter_list = np.zeros((3,0), dtype=[('weight', 'f8'), ('burst_diameter', 'f8'), ('drag_coefficient', 'f8')])
         self.balloon_parameter_file = None
         self.parachute_parameter_list = np.zeros((3,0), dtype=[('name', 'U25'), ('diameter', 'f8'), ('drag_coefficient', 'f8')])
@@ -1148,6 +1148,7 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--config', required=False, default=None, help='Load configuration for operator from ini file')
     parser.add_argument('-b', '--balloon-param', required=False, default='totex_balloon_parameters.tsv', help='Balloon parameter file')
     parser.add_argument('--parachute-param', required=False, default='parachute_parameters.tsv', help='Parachute parameter file')
+    parser.add_argument('-o', '--output-dir', required=False, default=tempfile.gettempdir(), help='Default output directory')
     parser.add_argument('--log', required=False, default=None, help='Log level')
     args = parser.parse_args()
 
@@ -1163,7 +1164,7 @@ if __name__ == "__main__":
     r = app_translator.load(QLocale.system().name(), 'i18n')
     app.installTranslator(app_translator)
 
-    main_widget = MainWidget()
+    main_widget = MainWidget(output_dir=args.output_dir)
     if args.payload:
         main_widget.loadPayloadIni(args.payload)
     else:
