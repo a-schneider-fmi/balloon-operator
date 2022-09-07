@@ -75,7 +75,7 @@ def lookupParameters(parameter_list, name, key='weight'):
         return parameter_list[ind[0]]
 
 
-def balloonPerformance(balloon_parameters, payload_weight, launch_volume=None, launch_radius=None, fill_gas=FillGas.HELIUM, burst_height_correction=False):
+def balloonPerformance(balloon_parameters, payload_weight, launch_volume=None, launch_radius=None, fill_gas=FillGas.HELIUM, burst_height_correction_factor=1.0):
     """
     Compute balloon performance (ascent velocity, burst altitude) based on
     filling and payload weight.
@@ -86,6 +86,7 @@ def balloonPerformance(balloon_parameters, payload_weight, launch_volume=None, l
     @param launch_volume fill volume in m^3
     @param launch_radius launch radius corresponding to balloon filling in m, alternative to launch_volume
     @param fill_gas fill gas, instance of FillGas enum
+    @param burst_height_correction_factor correction factor for burst height estimation (default: 1.0)
 
     @return neutral_lift neutral lift in kg
     @return ascent_velocity ascent velocity in m/s (negative for descent)
@@ -104,12 +105,11 @@ def balloonPerformance(balloon_parameters, payload_weight, launch_volume=None, l
     free_lift_force = free_lift * constants.gravity
     ascent_velocity = np.sign(free_lift_force)*np.sqrt(np.abs(free_lift_force) / (0.5*balloon_parameters['drag_coefficient']*constants.density['air']*np.pi*(launch_radius)**2)) # ascent velocity in m/s
     neutral_lift = payload_weight + free_lift
-    if burst_height_correction:
-        burst_height *= 1.03 # Correct underestimation of burst height by 3%.
+    burst_height *= burst_height_correction_factor
     return neutral_lift, ascent_velocity, burst_height
 
 
-def balloonFilling(balloon_parameters, payload_weight, ascent_velocity, fill_gas=FillGas.HELIUM, burst_height_correction=True):
+def balloonFilling(balloon_parameters, payload_weight, ascent_velocity, fill_gas=FillGas.HELIUM, burst_height_correction_factor=1.0):
     """
     Compute balloon filling for selected ascent rate.
 
@@ -119,6 +119,8 @@ def balloonFilling(balloon_parameters, payload_weight, ascent_velocity, fill_gas
     @param balloon_parameters: named array or dictionary with keys 'weight', 'burst_diameter' and 'drag_coefficient'
     @param payload_weight payload weight in kg
     @param ascent_velocity desired ascent velocity (may be negative for descent)
+    @param fill_gas fill gas, instance of FillGas enum
+    @param burst_height_correction_factor correction factor for burst height estimation (default: 1.0)
 
     @return launch_radius launch radius in m
     @return neutral_lift neutral lift in kg
@@ -131,7 +133,7 @@ def balloonFilling(balloon_parameters, payload_weight, ascent_velocity, fill_gas
         launch_radius = (r_min+r_max)/2.
         this_neutral_lift, this_ascent_velocity, this_burst_height = balloonPerformance(
                 balloon_parameters, payload_weight, launch_radius=launch_radius,
-                fill_gas=fill_gas, burst_height_correction=burst_height_correction)
+                fill_gas=fill_gas, burst_height_correction_factor=burst_height_correction_factor)
         if np.abs(this_ascent_velocity - ascent_velocity) < epsilon:
             break
         elif this_ascent_velocity > ascent_velocity:
@@ -146,10 +148,9 @@ def balloonFilling(balloon_parameters, payload_weight, ascent_velocity, fill_gas
 def twoBalloonFilling(
         asc_balloon_parameters, desc_balloon_parameters, payload_weight, 
         ascent_velocity, descent_velocity, fill_gas=FillGas.HELIUM, 
-        burst_height_correction=True):
+        burst_height_correction_factor=1.0):
     """
     Compute balloon filling for two-balloon method for selected ascent and descent rate.
-
     Approach from Jens Söder's MATLAB code.
 
     @param asc_balloon_parameters: balloon parameters for ascent balloon from lookupParameters
@@ -157,6 +158,8 @@ def twoBalloonFilling(
     @param payload_weight payload weight in kg
     @param ascent_velocity desired ascent velocity
     @param descent_velocity desired descent velocity, has to be negative
+    @param fill_gas fill gas, instance of FillGas enum
+    @param burst_height_correction_factor correction factor for burst height estimation (default: 1.0)
 
     @return asc_launch_radius launch radius of ascent balloon in m
     @return desc_launch_radius launch radius of descent balloon in m
@@ -168,7 +171,7 @@ def twoBalloonFilling(
     # First get filling of descent balloon.
     desc_launch_radius, desc_neutral_lift, desc_burst_height = balloonFilling(
             desc_balloon_parameters, payload_weight, -descent_velocity, fill_gas=fill_gas,
-            burst_height_correction=burst_height_correction)
+            burst_height_correction_factor=burst_height_correction_factor)
     # Now compute the virtual payload weight that the descent balloon would lift
     # with the selected ascent velocity. This is the payload reduction for the
     # ascent balloon.
@@ -180,7 +183,7 @@ def twoBalloonFilling(
         this_payload_weight = (payload_min+payload_max)/2.
         this_neutral_lift, this_ascent_velocity, this_burst_height = balloonPerformance(
                 desc_balloon_parameters, this_payload_weight, launch_radius=desc_launch_radius, 
-                fill_gas=fill_gas, burst_height_correction=burst_height_correction)
+                fill_gas=fill_gas, burst_height_correction_factor=burst_height_correction_factor)
         if np.abs(this_ascent_velocity - ascent_velocity) < epsilon:
             break
         elif this_ascent_velocity > ascent_velocity:
@@ -192,11 +195,13 @@ def twoBalloonFilling(
     # Finally compute the filling of the ascent balloon.
     asc_launch_radius, asc_neutral_lift, asc_burst_height = balloonFilling(
             asc_balloon_parameters, payload_weight-this_payload_weight, ascent_velocity,
-            fill_gas=fill_gas, burst_height_correction=burst_height_correction)
+            fill_gas=fill_gas, burst_height_correction_factor=burst_height_correction_factor)
     return asc_launch_radius, desc_launch_radius, asc_neutral_lift, desc_neutral_lift, asc_burst_height, desc_burst_height
 
 
-def main(balloon_weight, payload_weight, launch_radius, ascent_velocity=None, fill_gas=FillGas.HELIUM, parameter_file='totex_balloon_parameters.tsv'):
+def main(balloon_weight, payload_weight, launch_radius, ascent_velocity=None,
+         fill_gas=FillGas.HELIUM, burst_height_correction_factor=1.0,
+         parameter_file='totex_balloon_parameters.tsv'):
     """
     Main function to calculate balloon performance from command line.
     """
@@ -205,11 +210,12 @@ def main(balloon_weight, payload_weight, launch_radius, ascent_velocity=None, fi
     if ascent_velocity is None:
         neutral_lift, ascent_velocity, burst_height = balloonPerformance(
                 balloon_parameters, payload_weight, launch_radius=launch_radius,
-                fill_gas=fill_gas)
+                fill_gas=fill_gas, burst_height_correction_factor=burst_height_correction_factor)
         print('Neutral lift {:.3f} kg, ascent velocity {:.1f} m/s, burst height {:.0f} m'.format(neutral_lift, ascent_velocity, burst_height))
     else:
         launch_radius, neutral_lift, burst_height = balloonFilling(
-                balloon_parameters, payload_weight, ascent_velocity, fill_gas=fill_gas)
+                balloon_parameters, payload_weight, ascent_velocity, fill_gas=fill_gas,
+                burst_height_correction_factor=burst_height_correction_factor)
         print('Fill radius {:.3f} m, fill volume {:.2f} m^3, neutral lift: {} kg, burst altitude: {:.0f} m'.format(
                 launch_radius, 4./3.*np.pi*launch_radius**3, neutral_lift, burst_height))
     return
@@ -223,5 +229,6 @@ if __name__ == '__main__':
     parser.add_argument('radius', type=float, help='Launch radius in m')
     parser.add_argument('-v', '--velocity', required=False, type=int, default=None, help='Ascent velocity in m/s')
     parser.add_argument('-g', '--gas', required=False, default='helium', help='Fill gas (hydrogen or helium)')
+    parser.add_argument('-c', '--correction-factor', required=False, type=float, default=1.0, help='Burst height correction factor')
     args = parser.parse_args()
-    main(args.balloon, args.payload, args.radius, ascent_velocity=args.velocity, fill_gas=fillGas(args.gas))
+    main(args.balloon, args.payload, args.radius, ascent_velocity=args.velocity, fill_gas=fillGas(args.gas), burst_height_correction_factor=args.correction_factor)

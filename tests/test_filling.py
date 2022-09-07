@@ -58,7 +58,7 @@ def test_balloonPerformance(verbose=False):
     balloon_parameters = filling.lookupParameters(balloon_parameter_list, balloon_weight)
     neutral_lift, ascent_velocity, burst_height = filling.balloonPerformance(
             balloon_parameters, payload_weight, launch_volume, fill_gas=fill_gas,
-            burst_height_correction=False)
+            burst_height_correction_factor=1.0)
     if verbose:
         print('balloonPerformance')
         print('Neutral lift: {:.2f} kg, ascent velocity: {:.2f} m/s, burst altitude: {:.0f} m'.format(
@@ -73,7 +73,7 @@ def test_balloonPerformance(verbose=False):
     launch_radius = (launch_volume/(4./3.*np.pi))**(1./3.)
     neutral_lift_2, ascent_velocity_2, burst_height_2 = filling.balloonPerformance(
             balloon_parameters, payload_weight, launch_radius=launch_radius, fill_gas=fill_gas,
-            burst_height_correction=False)
+            burst_height_correction_factor=1.0)
     if verbose:
         print('Neutral lift: {:.2f} kg, ascent velocity: {:.2f} m/s, burst altitude: {:.0f} m'.format(
                 neutral_lift_2, ascent_velocity_2, burst_height_2))
@@ -92,13 +92,15 @@ def test_balloonFilling(verbose=False):
     payload_weight = 12. # kg
     ascent_velocity = 5. # m/s
     fill_gas = filling.FillGas.HELIUM
+    burst_height_correction_factor = 1.03 # value used by Jens' BalloonTrajectory software
     reference_burst_height = 27059 # m
     reference_lift = 15.020 # kg
     reference_launch_radius =  1.5718 # m
     eps_limit = 1e-2
     balloon_parameters = filling.lookupParameters(balloon_parameter_list, balloon_weight)
     launch_radius, neutral_lift, burst_height = filling.balloonFilling(
-            balloon_parameters, payload_weight, ascent_velocity, fill_gas=fill_gas)
+            balloon_parameters, payload_weight, ascent_velocity, fill_gas=fill_gas,
+            burst_height_correction_factor=burst_height_correction_factor)
     if verbose:
         print('balloonFilling')
         print('Fill radius {:.3f} m, fill volume {:.2f} m^3, burst altitude: {:.0f} m'.format(
@@ -120,7 +122,8 @@ def test_balloonFilling(verbose=False):
     reference_launch_radius =  1.3850 # m
     balloon_parameters = filling.lookupParameters(balloon_parameter_list, balloon_weight)
     launch_radius, neutral_lift, burst_height = filling.balloonFilling(
-            balloon_parameters, payload_weight, ascent_velocity, fill_gas=fill_gas)
+            balloon_parameters, payload_weight, ascent_velocity, fill_gas=fill_gas,
+            burst_height_correction_factor=burst_height_correction_factor)
     if verbose:
         print('Fill radius {:.3f} m, fill volume {:.2f} m^3, burst altitude: {:.0f} m'.format(
                 launch_radius, 4./3.*np.pi*launch_radius**3, burst_height))
@@ -139,6 +142,7 @@ def test_twoBalloonFilling(verbose=False):
     ascent_velocity = 5. # m/s
     descent_velocity = 5. # m/s
     fill_gas = filling.FillGas.HELIUM
+    burst_height_correction_factor = 1.03 # value used by Jens' BalloonTrajectory software
     reference_asc_launch_radius = 1.2664 # m
     reference_desc_launch_radius = 1.4194 # m
     reference_asc_burst_height = 31892 # m
@@ -150,7 +154,8 @@ def test_twoBalloonFilling(verbose=False):
     desc_balloon_parameters = filling.lookupParameters(balloon_parameter_list, desc_balloon_weight)
     asc_launch_radius, desc_launch_radius, asc_neutral_lift, desc_neutral_lift, asc_burst_height, desc_burst_height = filling.twoBalloonFilling(
             asc_balloon_parameters, desc_balloon_parameters, payload_weight, 
-            ascent_velocity, descent_velocity, fill_gas=fill_gas)
+            ascent_velocity, descent_velocity, fill_gas=fill_gas,
+            burst_height_correction_factor=burst_height_correction_factor)
     asc_neutral_lift = asc_neutral_lift
     if verbose:
         print('twoBalloonFilling')
