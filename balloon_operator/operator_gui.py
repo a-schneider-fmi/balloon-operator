@@ -421,7 +421,7 @@ class MainWidget(QWidget):
                 parameters['model'],
                 parameters['launch_lon'], parameters['launch_lat'],
                 parameters['launch_datetime'], self.model_path)
-        if model_filenames is None or (isinstance(model_filenames,list) and (model_filenames) == 0):
+        if model_filenames is None or (isinstance(model_filenames,list) and len(model_filenames) == 0):
             if callable(error_callback):
                 error_callback(self.tr('Error retrieving model data.'))
             return None
