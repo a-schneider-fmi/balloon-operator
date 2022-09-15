@@ -121,8 +121,9 @@ class MainWidget(QWidget):
         self.operator_widget.stopLiveOperation.connect(self.onStopLiveOperation)
 
         self.ui.dt_launch_datetime.setDateTime(utils.roundSeconds(datetime.datetime.utcnow()))
+        fill_gas_names = {filling.FillGas.HYDROGEN: self.tr('hydrogen'), filling.FillGas.HELIUM: self.tr('helium')}
         for fill_gas in filling.FillGas:
-            self.ui.combo_fill_gas.addItem(filling.fill_gas_names[fill_gas], fill_gas)
+            self.ui.combo_fill_gas.addItem(fill_gas_names[fill_gas], fill_gas)
         self.ui.edit_output_file.setText(os.path.join(output_dir, 'trajectory.gpx'))
         self.ui.edit_webpage_file.setText(os.path.join(output_dir, 'trajectory.html'))
         self.ui.edit_map_file.setText(os.path.join(output_dir, 'trajectory.png'))
