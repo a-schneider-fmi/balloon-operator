@@ -723,7 +723,7 @@ class OperatorWidget(QWidget):
         self.axis_alt = axes[0]
         self.axis_temp = axes[1]
         color = 'tab:red'
-        self.axis_alt.set_ylabel('Altitude (km)', color=color)
+        self.axis_alt.set_ylabel(self.tr('Altitude (km)'), color=color)
         self.axis_alt.tick_params(axis="y", colors=color)
         self.line_alt, = self.axis_alt.plot([datetime.datetime.utcnow()], [0], color=color)
         self.axis_alt.set_ylim(0, 30)
@@ -731,13 +731,13 @@ class OperatorWidget(QWidget):
         self.axis_alt.grid(axis='both')
         self.axis_press = self.axis_alt.twinx()
         color = 'tab:blue'
-        self.axis_press.set_ylabel('Pressure (hPa)', color=color)
+        self.axis_press.set_ylabel(self.tr('Pressure (hPa)'), color=color)
         self.axis_press.tick_params(axis="y", colors=color)
         self.line_press, = self.axis_press.plot([datetime.datetime.utcnow()], [0], color=color)
         self.axis_press.set_ylim(0, 1100)
-        self.axis_temp.set_xlabel('Time')
+        self.axis_temp.set_xlabel(self.tr('Time'))
         color = 'tab:red'
-        self.axis_temp.set_ylabel('Temperature (°C)', color=color)
+        self.axis_temp.set_ylabel(self.tr('Temperature (°C)'), color=color)
         self.axis_temp.tick_params(axis="y", colors=color)
         self.line_temp, = self.axis_temp.plot([datetime.datetime.utcnow()], [0], color=color)
         self.axis_temp.set_ylim(0, 30)
@@ -745,7 +745,7 @@ class OperatorWidget(QWidget):
         self.axis_temp.grid(axis='both')
         self.axis_battv = self.axis_temp.twinx()
         color = 'tab:blue'
-        self.axis_battv.set_ylabel('Battery voltage (V)', color=color)
+        self.axis_battv.set_ylabel(self.tr('Battery voltage (V)'), color=color)
         self.axis_battv.tick_params(axis="y", colors=color)
         self.line_battv, = self.axis_battv.plot([datetime.datetime.utcnow()], [0], color=color)
         self.axis_battv.set_ylim(0, 4)
@@ -754,7 +754,7 @@ class OperatorWidget(QWidget):
         self.ui.mpl_canvas.draw()
 
         # Fill combo box with special payloads.
-        self.ui.combo_payload_type.addItem('Generic', None)
+        self.ui.combo_payload_type.addItem(self.tr('Generic'), None)
         widget_files = sorted(glob.glob(os.path.join(os.path.dirname(__file__),'gui_payloadwidget_*.ui')))
         for widget_file in widget_files:
             name = os.path.splitext(os.path.basename(widget_file))[0][18:].title()
@@ -795,7 +795,7 @@ class OperatorWidget(QWidget):
         config.read(config_file)
         self.ui.combo_iridium.clear()
         self.ui.combo_receive_imei.clear()
-        self.ui.combo_receive_imei.addItem('All', '')
+        self.ui.combo_receive_imei.addItem(self.tr('All'), '')
         if 'rockblock_devices' in config.sections():
             for name in config.options('rockblock_devices'):
                 imei = config['rockblock_devices'].get(name)
