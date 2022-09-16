@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Balloon Operation Launcher</string>
+   <string>Balloon sounding operatior</string>
   </property>
   <property name="windowIcon">
    <iconset>
@@ -566,7 +566,7 @@
       <item row="2" column="0">
        <widget class="QCheckBox" name="check_map">
         <property name="text">
-         <string>Map</string>
+         <string>Map image</string>
         </property>
        </widget>
       </item>
