@@ -247,14 +247,14 @@
         <item>
          <widget class="QPushButton" name="button_load_payload">
           <property name="text">
-           <string>Load</string>
+           <string>Load template</string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QPushButton" name="button_save_payload">
           <property name="text">
-           <string>Save</string>
+           <string>Save template</string>
           </property>
          </widget>
         </item>
@@ -410,13 +410,6 @@
         </property>
         <property name="calendarPopup">
          <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="2">
-       <widget class="QPushButton" name="button_now">
-        <property name="text">
-         <string>Now</string>
         </property>
        </widget>
       </item>
@@ -810,7 +803,6 @@
   <tabstop>spin_launch_latitude</tabstop>
   <tabstop>spin_launch_altitude</tabstop>
   <tabstop>dt_launch_datetime</tabstop>
-  <tabstop>button_now</tabstop>
   <tabstop>check_border_crossing</tabstop>
   <tabstop>edit_output_file</tabstop>
   <tabstop>button_output_file_dialog</tabstop>

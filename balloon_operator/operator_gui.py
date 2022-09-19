@@ -139,7 +139,6 @@ class MainWidget(QWidget):
         for model_name in trajectory_predictor.readModelData.keys():
             self.ui.combo_model.addItem(model_name)
 
-        self.ui.button_now.clicked.connect(self.launchtimeNow)
         self.ui.button_load_payload.clicked.connect(self.onLoadPayload)
         self.ui.button_save_payload.clicked.connect(self.onSavePayload)
         self.ui.check_descent_balloon.stateChanged.connect(self.onChangeCheckDescentBalloon)
@@ -265,12 +264,6 @@ class MainWidget(QWidget):
                 'parachute': self.parachute_parameter_file}
         with open(config_file, 'w') as fd:
             config.write(fd)
-
-    def launchtimeNow(self):
-        """
-        Set launch datetime to now.
-        """
-        self.ui.dt_launch_datetime.setDateTime(utils.roundSeconds(datetime.datetime.utcnow()))
 
     def computeBalloonPerformance(self):
         """
