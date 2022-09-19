@@ -26,6 +26,8 @@ Atmospheric Physics in Kühlungsborn.
 Balloon Operator is written by Andreas Schneider <andreas.schneider@fmi.fi>
 at the Finnish Meteorological Institute in Sodankylä.
 
+Finnish translation by Pauli Heikkinen.
+
 
 ## License
 
@@ -164,6 +166,8 @@ status from messages is shown, a new trajectory estimation is computed each time
 a new message arrives, and messages can be sent to the payload, e.g. to trigger
 cutters.
 
+### Custom payload support
+
 Support for displaying custom payload-specific data exists. To this end, a
 widget named `gui_payloadwidget_name.ui` and a matching Python module
 `payloadwidget_name.py` are needed, where `name` has to be replaced by the
@@ -175,6 +179,25 @@ specific payload is selected. The `setPayloadData` method is called by
 `OperatorWidget` when a new message arrives with the decoded message as
 parameter. An example is provided in `gui_payloadwidget_wifvos.ui` and
 `payloadwidget_wifvos.py`.
+
+### Translations
+
+The GUI is translatable with Qt's translation mechanism. Translations are stored
+under the `i18n` subfolder. If you want to add a new translation, first create
+a ts file by the shell command
+```
+pyside6-lupdate balloon_operator/gui_mainwidget.ui balloon_operator/gui_operatorwidget.ui balloon_operator/operator_gui.py balloon_operator/gui_payloadwidget_wifvos.ui balloon_operator/payloadwidget_wifvos.py -ts i18n/fi.ts
+```
+where you have to replace `fi` in the `.ts` filename with the code of the
+language you want to translate to. If you have added widget(s) for custom
+payload(s), add them to the command above as well (similar to the WIFVOS
+example). Then use Qt Designer to provide translations for all translatable
+strings. Finally, compile the translations to Qt's qm format by
+```
+pyside6-lrelease i18n/fi.ts
+```
+where again you have to replace `fi` with the code of the language you translate
+to.
 
 
 ## Message translator on Android
