@@ -3,8 +3,8 @@
 Balloon operation software including trajectory prediction and flight control
 
 Balloon Operator is based on the BalloonTrajectory MATLAB software that has
-been developed by Jens Söder <soeder@iap-kborn.de> at the Institute of
-Atmospheric Physics in Kühlungsborn.
+been developed by Jens Söder at the Institute of Atmospheric Physics in Kühlungsborn
+(new email address: jens.soeder@io-warnemuende.de).
 
 
 ## Features
@@ -23,8 +23,8 @@ Atmospheric Physics in Kühlungsborn.
 
 ## Author
 
-Balloon Operator is written by Andreas Schneider <andreas.schneider@fmi.fi>
-at the Finnish Meteorological Institute in Sodankylä.
+Balloon Operator has been written by Andreas Schneider at the Finnish Meteorological
+Institute in Sodankylä (new email address: andreas1.schneider@t-online.de).
 
 Finnish translation by Pauli Heikkinen.
 
