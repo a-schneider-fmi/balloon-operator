@@ -51,7 +51,7 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 * [scipy](http://www.scipy.org)
 * [requests](http://python-requests.org)
 * [pygrib](https://github.com/jswhit/pygrib)
-* [geog](https://github.com/jwass/geog)
+* [GeographicLib](https://geographiclib.sourceforge.io/Python/)
 * [gpxpy](https://github.com/tkrajina/gpxpy)
 * [srtm-python](https://github.com/aatishnn/srtm-python)
 * [simplekml](https://github.com/eisoldt/simplekml)
@@ -67,7 +67,7 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 
 Usually, these can be installed with `pip`:
 ```
-pip install numpy scipy requests pygrib geog gpxpy simplekml keyring
+pip install numpy scipy requests pygrib geographiclib gpxpy simplekml keyring
 ```
 and if needed
 ```
@@ -86,9 +86,8 @@ are installed with `conda`, but some are not available in the standard channel.
 Thus:
 ```
 conda update --all
-conda install numpy scipy requests keyring
+conda install numpy scipy requests geographiclib keyring
 conda install -c conda-forge gpxpy simplekml pygrib
-pip install geog
 ```
 and if needed
 ```
@@ -115,7 +114,7 @@ Please note that the path can vary with your installation.
 On Linux, it is advisable to install Python packages through the system's
 packaging system. On Debian-based distributions (e.g. Ubuntu), the command is
 ```
-sudo apt install python3-numpy python3-scipy python3-requests python3-grib python3-gpxpy python3-keyring
+sudo apt install python3-numpy python3-scipy python3-requests python3-grib python3-geographiclib python3-gpxpy python3-keyring
 ```
 and if needed
 ```
@@ -144,9 +143,9 @@ To run Balloon Operator, you may need to set the PYTHONPATH to the installation.
   be downloaded manually from http://viewfinderpanoramas.org/dem3.html; the
   `HGT_DIR` environment variable should point to the location of the unpacked data.
 * To determine border crossings, the
-  [World Borders Dataset](http://thematicmapping.org/downloads/world_borders.php)
+  [World Borders Dataset](https://www.arcgis.com/home/item.html?id=3ec5344a891243b39b7b881acd70f659)
   needs to be available. The `WORLD_BORDERS_FILE` environment variable should point
-  to the location of the file `TM_WORLD_BORDERS-0.3.shp`.
+  to the location of the file `WorldBorders.shp`.
 
 
 ## Graphical user interface

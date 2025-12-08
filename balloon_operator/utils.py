@@ -21,6 +21,7 @@ Balloon Operator. If not, see <https://www.gnu.org/licenses/>.
 
 from balloon_operator import constants
 import datetime
+from geographiclib.geodesic import Geodesic
 
 
 def alt2press(h, p0=101325., T0=288.15, L=0.0065):
@@ -117,3 +118,36 @@ def roundHours(dt: datetime.datetime, round_up_threshold=30) -> datetime.datetim
     dt_rounded = datetime.datetime.combine(dt.date(), datetime.time(new_hour))
 
     return dt_rounded
+
+
+def geoDistance(lon1: float, lat1: float, lon2: float, lat2: float, distance_factor: float = 1.) -> (float, float):
+    """
+    Compute distance and azimuth angle between two points on Earth.
+
+    @param lon1 longitude of starting point
+    @param lat1 latitude of starting point
+    @param lon2 longitude of destination point
+    @param lat2 latitude of destination point
+    @param distance_factor factor to multiply to the computed distance, useful for unit conversion
+
+    @return distance distance in metres between starting point and destination point, multiplied by distance_factor
+    @return azimuth azimuth angle in degrees pointing from starting point to destination point
+    """
+    geodict = Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2)
+    return geodict['s12'] * distance_factor, geodict['azi1']
+
+
+def geoPropagate(lon: float, lat: float, azimuth: float,  distance: float) -> (float, float):
+    """
+    Compute destination point when starting from a given location at a given course
+
+    @param lon longitude of starting point
+    @param lat latitude of starting point
+    @param azimuth azimuth angle
+    @param distance distance
+
+    @param lon longitude of destination point
+    @param lat latitude of destination point
+    """
+    geodict = Geodesic.WGS84.Direct(lat, lon, azimuth, distance)
+    return geodict['lon2'], geodict['lat2']

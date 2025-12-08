@@ -28,7 +28,6 @@ import time
 import gpxpy
 import gpxpy.gpx
 import srtm
-import geog
 import pyproj
 import configparser
 import os.path
@@ -523,7 +522,7 @@ def predictBalloonFlight(
             time=segment_descent.points[-1].time, name='Landing'))
 
     # Add track description.
-    flight_range = geog.distance([launch_lon, launch_lat], [landing_lon, landing_lat]) / 1000.
+    flight_range, _ = utils.geoDistance(launch_lon, launch_lat, landing_lon, landing_lat, distance_factor=1e-3)
     track.description = 'Predicted balloon trajectory using {} model, '.format(model_data['model_name']) + \
         ('' if descent_only else 'ascent velocity {:.1f} m/s, '.format(ascent_velocity)) + \
         ('descent velocity {:.1f} m/s, '.format(descent_velocity) if descent_velocity is not None else 'descent on parachute {}, '.format(parachute_parameters['name'])) + \
@@ -546,7 +545,7 @@ def checkGeofence(cur_lon, cur_lat, launch_lon, launch_lat, radius):
     @retval False point outside geofence
     """
     if radius:
-        distance = geog.distance([launch_lon, launch_lat], [cur_lon, cur_lat]) / 1000.
+        distance, _ = utils.geoDistance(launch_lon, launch_lat, cur_lon, cur_lat, distance_factor=1e-3)
         if distance > radius:
             logging.warning('Location outside geofence: {:.6f}° {:.6f}° distance {:.4f} km'.format(
                     cur_lon, cur_lat, distance))
@@ -712,9 +711,10 @@ def doOneLivePrediction(
             model_data,
             timestep,
             initial_velocity=initial_descent_velocity)
-    flight_range = geog.distance(
-            [launch_point.longitude, launch_point.latitude],
-            [landing_lon, landing_lat]) / 1000.
+    flight_range, _ = utils.geoDistance(
+            launch_point.longitude, launch_point.latitude,
+            landing_lon, landing_lat,
+            distance_factor=1e-3)
     track.segments.append(segment_descent)
     waypoints.append(gpxpy.gpx.GPXWaypoint(
             landing_lat, landing_lon,
@@ -878,7 +878,7 @@ def hourlyForecast(
         landing_lon = flight_track.segments[-1].points[-1].longitude
         landing_lat = flight_track.segments[-1].points[-1].latitude
         landing_alt = flight_track.segments[-1].points[-1].elevation
-        flight_range = geog.distance([launch_lon, launch_lat], [landing_lon, landing_lat]) / 1000.
+        flight_range, _ = utils.geoDistance(launch_lon, launch_lat, landing_lon, landing_lat, distance_factor=1e-3)
         duration = flight_track.segments[-1].points[-1].time - launch_datetime
         print('Launch {}: landing at {:.5f}° {:.5f}° {:.0f} m, range {:.1f} km, duration {}'.format(
                 launch_datetime, landing_lon, landing_lat, landing_alt, flight_range, duration))
@@ -1180,8 +1180,7 @@ def exportTsv(track, output_file, top_height=None, is_abroad=None, foreign_count
     """
     launch_point = track.segments[0].points[0]
     landing_point = track.segments[-1].points[-1]
-    flight_range = geog.distance((launch_point.longitude, launch_point.latitude), (landing_point.longitude, landing_point.latitude)) / 1000.
-    azimuth = geog.course((launch_point.longitude, launch_point.latitude), (landing_point.longitude, landing_point.latitude), bearing=True)
+    flight_range, azimuth = utils.geoDistance(launch_point.longitude, launch_point.latitude, landing_point.longitude, landing_point.latitude, distance_factor=1e-3)
     logging.info('Writing tsv file {}'.format(output_file))
     with open(output_file, 'w') as fd:
         fd.write('Launch: {} UTC\n'.format(launch_point.time.strftime('%d %b %Y %H:%M')))

@@ -24,7 +24,6 @@ import requests
 import datetime
 import os.path
 import pathlib
-import geog
 import logging
 from balloon_operator import utils
 
@@ -44,10 +43,10 @@ def getLonLatArea(launch_lon, launch_lat, resolution=0.25, radius=500.):
     @return lon_range longitude range [min, max] in which to download model data
     @return lat_range latitude range [min, max] in which to download model data
     """
-    pos_bottom = geog.propagate((launch_lon, launch_lat), 180, radius*1000., bearing=True)
-    pos_top = geog.propagate((launch_lon, launch_lat), 0, radius*1000., bearing=True)
-    pos_left = geog.propagate((launch_lon, launch_lat), 270, radius*1000., bearing=True)
-    pos_right = geog.propagate((launch_lon, launch_lat), 90, radius*1000., bearing=True)
+    pos_bottom = utils.geoPropagate(launch_lon, launch_lat, 180, radius*1000.)
+    pos_top = utils.geoPropagate(launch_lon, launch_lat, 0, radius*1000.)
+    pos_left = utils.geoPropagate(launch_lon, launch_lat, 270, radius*1000.)
+    pos_right = utils.geoPropagate(launch_lon, launch_lat, 90, radius*1000.)
     lon_range = [np.floor(pos_left[0]/resolution)*resolution, np.ceil(pos_right[0]/resolution)*resolution]
     lat_range = [np.floor(pos_bottom[1]/resolution)*resolution, np.ceil(pos_top[1]/resolution)*resolution]
     return lon_range, lat_range
