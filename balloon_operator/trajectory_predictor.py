@@ -173,12 +173,12 @@ def readGfsDataFiles(filelist):
 
 def readHarmonieNcDataFile(filename):
     """
-    Read Harmonie data file
+    Read Harmonie data netCDF file
 
-    @param filename name of GFS GRIB data file
+    @param filename name of HARMONIE netCDF data file
 
     @return data a dictionary with the read model data with the following keys:
-        'datetime', 'x', 'y', 'press', 'sealevel_pressure',
+        'datetime', 'x', 'y', 'hybrid', 'sealevel_pressure',
         'u_wind_ms', 'v_wind_ms', 'proj'
     """
     import netCDF4
@@ -200,18 +200,82 @@ def readHarmonieNcDataFile(filename):
             'v_wind_ms': ds['northward_wind_24'][:,:,:,:].filled(np.nan),
             'proj': proj, 'lev_type': 'hybrid',
             'model_name': 'HARMONIE'}
+    if 'hybrid' in ds:
+        data['hybrid'] = ds['hybrid']
     ds.close()
+    return data
+
+
+def readHarmonieHdfDataFile(filename):
+    """
+    Read Harmonie HDF5 data file
+
+    @param filename name of HARMONIE HDF5 data file
+
+    @return data a dictionary with the read model data with the following keys:
+        'datetime', 'x', 'y', 'hybrid', 'sealevel_pressure', 'altitude',
+        'u_wind_ms', 'v_wind_ms', 'proj'
+    """
+    import netCDF4
+    ds = netCDF4.Dataset(filename)
+    proj = pyproj.Proj('+proj=lcc +lon_0={} +lat_0={} +lat_1={} +lat_2={} +R={}'.format(
+            ds['projection_lambert'].longitude_of_central_meridian,
+            ds['projection_lambert'].latitude_of_projection_origin,
+            ds['projection_lambert'].standard_parallel[0],
+            ds['projection_lambert'].standard_parallel[1],
+            ds['projection_lambert'].earth_radius))
+    data = {'datetime': np.array([datetime.datetime.fromtimestamp(ts) for ts in ds['time'][:]]),
+            'x': ds['x'][:].data,
+            'y': ds['y'][:].data,
+            'hybrid': ds['hybrid'][:].data,
+            'lon': ds['longitude'][:, :].data,
+            'lat': ds['latitude'][:, :].data,
+            'sealevel_pressure': np.squeeze(ds['air_pressure_at_sea_level'][:, 0, :, :].data),
+            'u_wind_ms': np.squeeze(ds['x_wind_ml'][:, :, :, :].data),
+            'v_wind_ms': np.squeeze(ds['y_wind_ml'][:, :, :, :].data),
+            'proj': proj,
+            'lev_type': 'hybrid',
+            'model_name': 'HARMONIE',
+            'reference_time': datetime.datetime.fromtimestamp(ds['forecast_reference_time'][:].data.item())}
+    # Compute altitude according to https://github.com/metno/NWPdocs/wiki/Examples
+    nl = data['hybrid'].size
+    ap = ds['ap'][:].data
+    b = ds['b'][:].data
+    p_s = ds['surface_air_pressure'][:,0,:,:].data
+    t_air = ds['air_temperature_ml'][:,:,:,:].data
+    q_air = ds['specific_humidity_ml'][:,:,:,:].data
+    t_virt = t_air*(1. + 0.61*q_air)
+    n = ap.size
+    ap_half = np.zeros(n+1)
+    b_half = np.ones(n+1)
+    for k in reversed(range(n)):
+        ap_half[k] = 2*ap[k] - ap_half[k+1]
+        b_half[k] = 2*b[k] - b_half[k+1]
+    pressure_at_k_half = np.empty((data['datetime'].size,nl+1,data['y'].size,data['x'].size), p_s.dtype)
+    for l,ak,bk in zip(range(ap_half.size), ap_half, b_half):
+        pressure_at_k_half[:,l,:,:] = ak + (bk*p_s)
+    R = 287.058 # value from wiki
+    g = 9.81
+    height_at_k_half = np.empty_like(pressure_at_k_half) # half-level heights
+    height_at_k_half[:,-1,:,:] = 0
+    for l in range(nl - 1, 0, -1):
+        height_at_k_half[:,l,:,:] = height_at_k_half[:,l+1,:,:] + (R*t_virt[:,l,:,:]/g)*np.log(pressure_at_k_half[:,l+1,:,:]/pressure_at_k_half[:,l,:,:])
+    height_at_k = np.empty_like(t_virt) # full-level heights
+    for l in range(nl - 1, 0, -1):
+        height_at_k[:,l,:,:] = 0.5*(height_at_k_half[:,l+1,:,:] + height_at_k_half[:,l,:,:])
+    height_at_k[:,0,:,:] = height_at_k_half[:,1,:,:] + (R*t_virt[:,0,:,:]/g)*np.log(2)
+    data['altitude'] = height_at_k
     return data
 
 
 def readHarmonieGribDataFile(filename):
     """
-    Read Harmonie data file
+    Read Harmonie GRIB data file
 
-    @param filename name of GFS GRIB data file
+    @param filename name of HARMONIE GRIB data file
 
     @return data a dictionary with the read model data with the following keys:
-        'datetime', 'x', 'y', 'press', 'altitude', 'u_wind_ms', 'v_wind_ms', 'proj'
+        'datetime', 'x', 'y', 'hybrid', 'press', 'altitude', 'u_wind_ms', 'v_wind_ms', 'proj'
     """
     import xarray as xr
     ds = xr.open_dataset(filename, engine='cfgrib')
@@ -252,8 +316,11 @@ def readHarmonieDataFiles(filelist):
         filelist = [filelist]
     data = None
     for filename in filelist:
-        if os.path.splitext(filename)[1] == '.nc':
+        file_ext = os.path.splitext(filename)[1]
+        if file_ext == '.nc':
             this_data = readHarmonieNcDataFile(filename)
+        elif file_ext == '.hdf':
+            this_data = readHarmonieHdfDataFile(filename)
         else:
             this_data = readHarmonieGribDataFile(filename)
         if data is None:
@@ -272,7 +339,8 @@ Define supported models and their read functions.
 """
 readModelData = {
         'GFS': readGfsDataFiles,
-        'HARMONIE': readHarmonieDataFiles}
+        'HARMONIE': readHarmonieDataFiles,
+        'HARMONIE-FMI': readHarmonieDataFiles}
 
 
 def equidistantAltitudeGrid(start_datetime, start_altitude, end_altitude, ascent_velocity, timestep):
@@ -566,9 +634,16 @@ def checkBorderCrossing(track):
     @return foreign_countries array of iso codes of foreign countries crossed into
     """
     import countries
+    from osgeo import gdal
     borders_file = os.getenv('WORLD_BORDERS_FILE')
     if borders_file is None:
         borders_file = 'TM_WORLD_BORDERS-0.3.shp'
+    if not os.path.exists(borders_file):
+        logging.error(f'Borders file {borders_file} does not exist!')
+    shx_file = os.path.splitext(borders_file)[0]+'.shx'
+    if not os.path.exists(shx_file):
+        logging.warning(f'SHX file {shx_file} does not exist, asking gdal to restore it.')
+        gdal.SetConfigOption('SHAPE_RESTORE_SHX', 'YES')
     cc = countries.CountryChecker(borders_file)
     no_of_points = 0
     for segment in track.segments:
@@ -1396,7 +1471,7 @@ if __name__ == "__main__":
     parser.add_argument('-x', '--export-tsv', required=False, default=None, help='Export trajectory in tsv format')
     parser.add_argument('-u', '--upload', required=False, default=None, help='Upload results to web server')
     parser.add_argument('-o', '--output', required=False, default=None, help='Output file name')
-    parser.add_argument('-m', '--model', required=False, default='gfs', help='Select model (gfs, harmonie)')
+    parser.add_argument('-m', '--model', required=False, default='gfs', help='Select model (gfs, harmonie, harmonie-fmi)')
     parser.add_argument('--log', required=False, default='INFO', help='Log level')
     args = parser.parse_args()
     if args.launchtime == 'now':

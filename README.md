@@ -56,7 +56,9 @@ pathlib, sys, enum, configparser, argparse) and the following third-party packag
 * [srtm-python](https://github.com/aatishnn/srtm-python)
 * [simplekml](https://github.com/eisoldt/simplekml)
 * [keyring](https://github.com/jaraco/keyring)
-* [cfgrib](https://github.com/ecmwf/cfgrib) for using HARMONIE model data
+* [cfgrib](https://github.com/ecmwf/cfgrib) for using FMI HARMONIE model data
+* [pydap](https://pydap.github.io/pydap/) for accessing MET Norway open HARMONIE model data
+* [xarray](https://xarray.dev/) for downloading MET Norway open HARMONIE model data
 * [paramiko](https://github.com/paramiko/paramiko) for uploading data with scp/sftp
 * [folium](https://github.com/python-visualization/folium) for creating web pages
 * [pyside6](https://doc.qt.io/qtforpython/) for the graphical user interface
@@ -71,6 +73,8 @@ pip install numpy scipy requests pygrib geographiclib gpxpy simplekml keyring
 ```
 and if needed
 ```
+pip install pydap
+pip install xarray
 pip install folium
 pip install paramiko
 pip install pyside6
@@ -91,6 +95,8 @@ conda install -c conda-forge gpxpy simplekml pygrib
 ```
 and if needed
 ```
+conda install -c conda-forge pydap
+conda install xarray
 conda install -c conda-forge folium
 conda install -c conda-forge paramiko
 pip install pyside6
@@ -118,7 +124,7 @@ sudo apt install python3-numpy python3-scipy python3-requests python3-grib pytho
 ```
 and if needed
 ```
-sudo apt install python3-matplotlib python3-cartopy python3-gdal
+sudo apt install pyside6.qtuitools python3-pyside6.qtsvgwidgets python3-matplotlib python3-cartopy python3-python3-gdal python3-xarray
 ```
 Some Python packages are not available through the Linux packaging system.
 These can either be installed with pip or by cloning the repositories and setting
@@ -145,7 +151,8 @@ To run Balloon Operator, you may need to set the PYTHONPATH to the installation.
 * To determine border crossings, the
   [World Borders Dataset](https://www.arcgis.com/home/item.html?id=3ec5344a891243b39b7b881acd70f659)
   needs to be available. The `WORLD_BORDERS_FILE` environment variable should point
-  to the location of the file `WorldBorders.shp`.
+  to the location of the file `WorldBorders.shp` The files `WorldBorders.dbf`
+  and `WorldBorders.shx` are also needed.
 
 
 ## Graphical user interface
